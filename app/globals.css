@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-placeholder: var(--placeholder);
+  --color-danger: var(--danger);
+  --color-input-muted: var(--input-muted);
+  --color-button-hover: var(--button-hover);
+  --color-button-ghost-hover: var(--button-ghost-hover);
+  --color-control-active: var(--control-active);
+  --color-control-active-hover: var(--control-active-hover);
+  --color-switch-off: var(--switch-off);
+  --color-switch-on: var(--switch-on);
+  --color-swatch-dark: var(--swatch-dark);
+  --color-swatch-gray: var(--swatch-gray);
+  --color-swatch-white: var(--swatch-white);
+  --color-swatch-coral: var(--swatch-coral);
+  --color-swatch-gold: var(--swatch-gold);
+  --font-sans: var(--font-sans);
+  --ease-ui-out: var(--ease-out);
+  --ease-ui-in-out: var(--ease-in-out);
+  --shadow-card-1: var(--shadow-card-1);
+  --shadow-card-2: var(--shadow-card-2);
+  --shadow-card-3: var(--shadow-card-3);
+  --shadow-button: var(--shadow-button);
+  --shadow-input: var(--shadow-input);
+  --shadow-input-focus: var(--shadow-input-focus);
+  --shadow-input-invalid: var(--shadow-input-invalid);
+  --shadow-swatch: var(--shadow-swatch);
+  --shadow-switch-thumb: var(--shadow-switch-thumb);
+  --shadow-tooltip: var(--shadow-tooltip);
+}
+
+:root {
+  color-scheme: light;
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, -apple-system,
+    BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+
+  --background: #f4f1ec;
+  --foreground: #201e1b;
+  --card: #fffefd;
+  --card-foreground: #201e1b;
+  --muted: #e7e3de;
+  --muted-foreground: #9a958d;
+  --primary: #201e1b;
+  --secondary: #7d7871;
+  --surface-sunken: #f1eee9;
+  --border: #ddd7cf;
+  --ring: #201e1b;
+  --placeholder: #bcb6ad;
+  --danger: #d1492e;
+  --input-muted: #f6f3ee;
+
+  --button-hover: #f3f0eb;
+  --button-ghost-hover: #e8e3dc;
+  --control-active: #e4ded5;
+  --control-active-hover: #dbd4ca;
+  --switch-off: #d8d2c9;
+  --switch-on: #201e1b;
+
+  --swatch-dark: #201e1b;
+  --swatch-gray: #7d7871;
+  --swatch-white: #fbfaf8;
+  /* Golden Gate international-orange — the Criblist accent. */
+  --swatch-coral: #d1492e;
+  --swatch-gold: #e0993a;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --shadow-card-1: 0 4px 6px rgb(0 0 0 / 0.05),
+    0 2px 2px rgb(0 0 0 / 0.05), 0 0 0 1px rgb(0 0 0 / 0.1);
+  --shadow-card-2: 0 8px 12px rgb(0 0 0 / 0.06),
+    0 1px 3px rgb(0 0 0 / 0.1), 0 0 0 1px rgb(0 0 0 / 0.1);
+  --shadow-card-3: 0 12px 16px rgb(0 0 0 / 0.1),
+    0 2px 4px rgb(0 0 0 / 0.1), 0 0 0 1px rgb(0 0 0 / 0.15);
+  --shadow-button: var(--shadow-card-1);
+  --shadow-input: 0 2px 2px rgb(0 0 0 / 0.05),
+    0 0 0 1px rgb(0 0 0 / 0.1);
+  --shadow-input-focus: 0 0 0 1px rgb(58 54 50),
+    0 4px 6px rgb(0 0 0 / 0.1), 0 2px 2px rgb(0 0 0 / 0.05),
+    0 0 0 1px rgb(0 0 0 / 0.1);
+  --shadow-input-invalid: 0 0 0 1px var(--danger),
+    0 4px 6px rgb(0 0 0 / 0.1), 0 2px 2px rgb(0 0 0 / 0.05);
+  --shadow-swatch: 0 1px 1px rgb(0 0 0 / 0.04);
+  --shadow-switch-thumb: 0 1px 2px rgb(0 0 0 / 0.18),
+    0 3px 8px -5px rgb(0 0 0 / 0.5);
+  --shadow-tooltip: var(--shadow-card-2);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #171513;
+  --foreground: #f2eee9;
+  --card: #211f1c;
+  --card-foreground: #f2eee9;
+  --muted: #2e2a26;
+  --muted-foreground: #b3aaa2;
+  --primary: #f2eee9;
+  --secondary: #b3aaa2;
+  --surface-sunken: #1d1b18;
+  --border: #3a352f;
+  --ring: #d7cec5;
+  --placeholder: #81776e;
+  --danger: #ff7a63;
+  --input-muted: #282520;
+  --button-hover: #282520;
+  --button-ghost-hover: rgb(242 238 233 / 0.07);
+  --control-active: #34302b;
+  --control-active-hover: #3b362f;
+  --switch-off: #3b362f;
+  --switch-on: #f2eee9;
+  --shadow-input-focus: 0 0 0 1px rgb(242 238 233 / 0.9),
+    0 4px 6px rgb(0 0 0 / 0.25), 0 2px 2px rgb(0 0 0 / 0.18),
+    0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--background);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Warm paper canvas: a soft vertical gradient with a fine film grain laid
+   over it (multiply keeps it a texture, not a wash). Echoes get.amo.co. */
+.nook-canvas {
+  position: relative;
+  min-height: 100vh;
+  background-color: #f5f1ed;
+  background-image: linear-gradient(180deg, #fcfbfa 0%, #f5f1ed 100%);
+}
+
+.nook-canvas::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/grain.png");
+  background-size: 240px 180px;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+}
+
+/* The matted white frame — a printed-card border that rings the viewport on
+   larger screens. Sits above content, below modals, and never eats clicks. */
+.nook-frame-border {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: none;
+  pointer-events: none;
+  border: 18px solid #fffefe;
+  opacity: 0.97;
+}
+
+@media (min-width: 768px) {
+  .nook-frame-border {
+    display: block;
+    border-width: 22px;
+  }
+}
+
+/* Deep, feathered elevation stack (five layers) for the hero surfaces. */
+.shadow-elevated {
+  box-shadow:
+    0 5px 11px 0 rgb(63 48 38 / 0.05),
+    0 19px 19px 0 rgb(63 48 38 / 0.04),
+    0 43px 26px 0 rgb(63 48 38 / 0.03),
+    0 76px 31px 0 rgb(63 48 38 / 0.012),
+    0 0 0 1px rgb(63 48 38 / 0.05);
+}
+
+/* Elevated surface built from design-system tokens. */
+.nook-card {
+  background: var(--card);
+  box-shadow: var(--shadow-card-2);
+}
+
+.nook-input {
+  height: 46px;
+  border-radius: 14px;
+  background: var(--input-muted);
+  padding-inline: 13px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  box-shadow: var(--shadow-input);
+  transition: box-shadow 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+
+.nook-input::placeholder {
+  color: var(--placeholder);
+}
+
+.nook-input:focus {
+  background: var(--card);
+  box-shadow: var(--shadow-input-focus);
+}
+
+/* Hide scrollbars on the in-card scrollers (thumbnail strips, sheets). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgb(240 105 82 / 0.24);
+}
+
+/* Squircles are applied via `useSquircle()` from `@lisse/react`. Pass a
+   `wrapperRef` on elements that need a visible shadow — Lisse extracts
+   the CSS `box-shadow` and re-renders it as SVG that follows the
+   squircle exactly. See the hook's JSDoc for details. */
