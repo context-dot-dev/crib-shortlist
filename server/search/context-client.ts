@@ -1,5 +1,5 @@
 const CONTEXT_API_ROOT = "https://api.context.dev/v1";
-const CONTEXT_CONCURRENCY = 3;
+const CONTEXT_CONCURRENCY = 5;
 
 const globalContextQueue = globalThis as typeof globalThis & {
   criblistContextActiveRequests?: number;

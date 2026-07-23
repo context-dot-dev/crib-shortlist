@@ -15,13 +15,13 @@ Criblist is a live showcase of the
 sites into fast, usable documents; Criblist turns those documents into a
 ranked apartment deck.
 
-The search pipeline uses Context.dev before any product logic runs:
+Context.dev powers the marketplace-discovery side of the search pipeline:
 
-1. The **Markdown API** renders live Craigslist searches and independent San
-   Francisco property-manager feeds with links and listing content intact.
-2. The **HTML API** retrieves detail pages so Criblist can recover high-quality
-   photography and facts from dynamically rendered property sites.
-3. Criblist normalizes, validates, deduplicates, filters, and ranks the returned
+1. The **Markdown API** renders live Craigslist inventory with listing links
+   intact.
+2. Criblist validates those detail pages and combines them with Mosser's live
+   structured inventory.
+3. The shared pipeline normalizes, deduplicates, filters, and ranks the combined
    inventory into one consistent deck.
 
 The Context.dev API key stays server-side. Source adapters run concurrently,
@@ -81,26 +81,21 @@ app/
 server/search/
 ├── context-client.ts          Context.dev transport
 ├── craigslist.ts              Craigslist discovery and parsing
-├── local-sources.ts           SF property-manager adapters
+├── mosser.ts                  Structured Mosser inventory adapter
 ├── ranking.ts                 filtering, scoring, and diversity
 ├── schemas.ts                 request and response contracts
 └── service.ts                 search orchestration
 ```
 
-The browser sends one validated preference object to
-`POST /api/apartment-search`. The search service queries each Context-backed
-source adapter concurrently, normalizes the results into one card contract,
-applies shared quality gates, and returns a ranked deck.
+The browser sends one validated preference object to parallel source requests
+at `POST /api/apartment-search`. Mosser results open the deck immediately;
+Context-powered Craigslist results join it in the background. Both adapters
+normalize into one card contract and pass through the same quality gates.
 
 ## Live sources
 
 - Craigslist San Francisco
-- Gaetani Real Estate
-- JODI Rentals
 - Mosser Living
-- RentSFNow
-- Rentals in SF
-- SF City Rents
 
 Each adapter starts from the provider's current-availability page instead of a
 stale search index.
@@ -109,7 +104,7 @@ stale search index.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `CONTEXT_DEV_API_KEY` | yes | Live rendering and extraction through Context.dev |
+| `CONTEXT_DEV_API_KEY` | yes | Live Craigslist discovery through Context.dev |
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical URL for social metadata |
 
 Do not commit `.env.local`.

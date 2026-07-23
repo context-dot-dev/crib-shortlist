@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { ContextFortune, Footer, Header } from "./chrome";
 import { ApartmentDeck } from "./deck";
@@ -28,6 +28,7 @@ export function HomePage() {
   const [savedOpen, setSavedOpen] = useState(false);
   const [detail, setDetail] = useState<ApartmentCard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchSequence = useRef(0);
 
   const currentApartment = apartments[currentIndex];
 
@@ -125,10 +126,16 @@ export function HomePage() {
   }, []);
 
   const search = useCallback(async () => {
+    const sequence = searchSequence.current + 1;
+    searchSequence.current = sequence;
     setStage("searching");
     setError(null);
-    try {
-      const response = await fetch("/api/apartment-search", {
+    setApartments([]);
+    setCurrentIndex(0);
+    setHistory([]);
+
+    const requestSource = async (source: "independent" | "craigslist") => {
+      const response = await fetch(`/api/apartment-search?source=${source}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(preferences),
@@ -138,12 +145,27 @@ export function HomePage() {
         error?: string;
       };
       if (!response.ok) throw new Error(result.error ?? "the search hit a snag.");
-      const next = result.apartments ?? [];
-      setApartments(next);
-      setCurrentIndex(0);
-      setHistory([]);
-      setStage(next.length > 0 ? "deck" : "done");
+      return result.apartments ?? [];
+    };
+
+    const independentRequest = requestSource("independent");
+    const craigslistRequest = requestSource("craigslist");
+
+    try {
+      const independent = await independentRequest.catch(() => []);
+      if (searchSequence.current !== sequence) return;
+      if (independent.length > 0) {
+        setApartments(independent);
+        setStage("deck");
+      }
+
+      const craigslist = await craigslistRequest.catch(() => []);
+      if (searchSequence.current !== sequence) return;
+      const combined = dedupeApartments([...independent, ...craigslist]);
+      setApartments(combined);
+      setStage(combined.length > 0 ? "deck" : "done");
     } catch (searchError) {
+      if (searchSequence.current !== sequence) return;
       setError(
         searchError instanceof Error ? searchError.message : "the search hit a snag.",
       );
@@ -176,6 +198,7 @@ export function HomePage() {
   }, [history, removeSaved]);
 
   const editSearch = useCallback(() => {
+    searchSequence.current += 1;
     setDetail(null);
     setSavedOpen(false);
     setStage("setup");
@@ -266,4 +289,10 @@ export function HomePage() {
       </AnimatePresence>
     </main>
   );
+}
+
+function dedupeApartments(apartments: ApartmentCard[]) {
+  return [
+    ...new Map(apartments.map((apartment) => [apartment.url, apartment])).values(),
+  ];
 }
