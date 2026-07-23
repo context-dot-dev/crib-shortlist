@@ -11,9 +11,6 @@ export const contentType = "image/png";
 const background = `data:image/png;base64,${readFileSync(
   join(process.cwd(), "public", "og-background.png"),
 ).toString("base64")}`;
-const contextFortune = `data:image/png;base64,${readFileSync(
-  join(process.cwd(), "public", "context-fortune.png"),
-).toString("base64")}`;
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -133,21 +130,6 @@ export default function OpengraphImage() {
           </div>
         </div>
 
-        <img
-          alt=""
-          src={contextFortune}
-          width={390}
-          height={179}
-          style={{
-            position: "absolute",
-            right: 14,
-            bottom: -8,
-            width: 390,
-            height: 179,
-            transform: "rotate(-2deg)",
-            filter: "drop-shadow(0 12px 18px rgba(56, 45, 34, 0.14))",
-          }}
-        />
       </div>
     ),
     size,

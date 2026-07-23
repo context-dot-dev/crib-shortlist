@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Header, Footer } from "./chrome";
+import { ContextFortune, Footer, Header } from "./chrome";
 import { ApartmentDeck } from "./deck";
 import { DetailDrawer, SavedPanel } from "./panels";
 import { SearchComplete, SearchSetup, Searching } from "./search";
@@ -236,6 +236,7 @@ export function HomePage() {
       </div>
 
       <div aria-hidden className="nook-frame-border" />
+      <ContextFortune />
 
       <AnimatePresence>
         {savedOpen ? (
