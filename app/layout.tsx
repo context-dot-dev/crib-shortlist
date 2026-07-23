@@ -9,9 +9,6 @@ const inter = Inter({
   display: "swap",
 });
 
-// Absolute base for OG/canonical URLs. Order: an explicit override, then the
-// domain Vercel injects automatically (so OG images resolve to the real host in
-// production without any config), then localhost for dev.
 function resolveSiteUrl(): string {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL)
