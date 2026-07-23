@@ -110,7 +110,7 @@ export function Footer() {
         target="_blank"
         rel="noreferrer"
         aria-label="visit context.dev"
-        className="w-[260px] origin-center -rotate-1 transition duration-300 hover:rotate-0 hover:scale-[1.02] md:hidden"
+        className="mt-1 w-[220px] origin-center -rotate-1 transition duration-300 hover:rotate-0 hover:scale-[1.02] md:hidden"
       >
         <FadeImage
           src="/context-fortune.png"
@@ -129,12 +129,12 @@ export function ContextFortune() {
       target="_blank"
       rel="noreferrer"
       aria-label="visit context.dev"
-      className="group fixed right-7 bottom-7 z-20 hidden w-[270px] origin-bottom-right -rotate-2 outline-none transition duration-300 hover:rotate-0 hover:scale-[1.03] focus-visible:rotate-0 focus-visible:scale-[1.03] md:block"
+      className="group fixed right-12 bottom-12 z-20 hidden w-[230px] origin-bottom-right -rotate-1 outline-none transition duration-300 hover:rotate-0 hover:scale-[1.03] focus-visible:rotate-0 focus-visible:scale-[1.03] md:block"
     >
       <FadeImage
         src="/context-fortune.png"
         alt="built using Context.dev"
-        className="h-auto w-full drop-shadow-[0_12px_18px_rgba(56,45,34,0.14)] transition-[filter] duration-300 group-hover:drop-shadow-[0_16px_24px_rgba(56,45,34,0.2)]"
+        className="h-auto w-full drop-shadow-[0_10px_16px_rgba(56,45,34,0.12)] transition-[filter] duration-300 group-hover:drop-shadow-[0_14px_22px_rgba(56,45,34,0.18)]"
       />
     </a>
   );
