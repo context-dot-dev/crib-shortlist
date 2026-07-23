@@ -10,12 +10,6 @@
 
 ## Built on Context.dev
 
-<p align="center">
-  <a href="https://context.dev">
-    <img src="./public/context-fortune.png" width="560" alt="Built using Context.dev" />
-  </a>
-</p>
-
 Criblist is a live showcase of the
 [Context.dev Web Extraction API](https://context.dev). Context turns rental
 sites into fast, usable documents; Criblist turns those documents into a
