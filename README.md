@@ -1,28 +1,60 @@
-# criblist 🌉
+<h1 align="center">
+  <img src="./public/favicon-192.png" width="44" height="44" alt="Criblist bridge icon" />
+  criblist
+</h1>
 
-Criblist turns live San Francisco rental inventory into a small deck you can
-swipe, inspect, and shortlist.
+<p align="center"><em>the sf hunt, minus the hunting.</em></p>
 
-Instead of presenting another dense search-results page, it asks for the few
-constraints that matter, verifies exact listing pages, and keeps the interaction
-focused on one apartment at a time.
+<!-- Add the project banner here. -->
 
-## What it does
+<br />
 
-- Searches live Craigslist inventory and local San Francisco property managers.
-- Extracts listing facts and photography through Context.dev.
-- Applies budget, bedroom, bathroom, neighborhood, laundry, pet, and dishwasher
-  requirements.
-- Ranks complete listings while keeping the deck diverse across providers.
-- Preloads upcoming photography for instant photo changes and card transitions.
-- Stores search preferences, the current deck, and the shortlist in the browser.
+## Built on Context.dev
+
+<p align="center">
+  <a href="https://context.dev">
+    <img src="./public/context-fortune.png" width="560" alt="Built using Context.dev" />
+  </a>
+</p>
+
+Criblist is a live showcase of the
+[Context.dev Web Extraction API](https://context.dev). Context turns rental
+sites into fast, usable documents; Criblist turns those documents into a
+ranked apartment deck.
+
+The search pipeline uses Context.dev before any product logic runs:
+
+1. The **Markdown API** renders live Craigslist searches and independent San
+   Francisco property-manager feeds with links and listing content intact.
+2. The **HTML API** retrieves detail pages so Criblist can recover high-quality
+   photography and facts from dynamically rendered property sites.
+3. Criblist normalizes, validates, deduplicates, filters, and ranks the returned
+   inventory into one consistent deck.
+
+The Context.dev API key stays server-side. Source adapters run concurrently,
+short-lived caches make repeat searches fast, and failed sources cannot take
+down the entire search.
+
+## The product
+
+Criblist asks for the few apartment constraints that matter, searches listings
+that are live right now, and gives the renter one home at a time to swipe,
+inspect, or shortlist.
+
+- Live Craigslist and independent SF property-manager inventory
+- Budget, bedroom, bathroom, neighborhood, laundry, pet, dishwasher, and size
+  filters
+- Photo-backed cards with match reasons and honest caveats
+- Provider diversity so one marketplace cannot dominate the deck
+- Preloaded photography for fast galleries and card transitions
+- Browser-local preferences, deck progress, and shortlist
 
 ## Local setup
 
 Requirements:
 
 - Node.js 20 or newer
-- A Context.dev API key
+- A [Context.dev API key](https://context.dev)
 
 ```bash
 cp .env.example .env.local
@@ -63,13 +95,11 @@ server/search/
 ```
 
 The browser sends one validated preference object to
-`POST /api/apartment-search`. The search service queries independent source
-adapters concurrently, normalizes their results into one card shape, applies
-the same quality gates, and returns a ranked deck.
+`POST /api/apartment-search`. The search service queries each Context-backed
+source adapter concurrently, normalizes the results into one card contract,
+applies shared quality gates, and returns a ranked deck.
 
 ## Live sources
-
-The source layer currently covers:
 
 - Craigslist San Francisco
 - Gaetani Real Estate
@@ -77,15 +107,14 @@ The source layer currently covers:
 - Rentals in SF
 - SF City Rents
 
-Each local adapter starts from the provider's current-availability page. This
-avoids stale search-engine results and prevents unavailable detail pages from
-entering the deck.
+Each adapter starts from the provider's current-availability page instead of a
+stale search index.
 
 ## Environment
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `CONTEXT_DEV_API_KEY` | yes | Live discovery, extraction, and page rendering |
+| `CONTEXT_DEV_API_KEY` | yes | Live rendering and extraction through Context.dev |
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical URL for social metadata |
 
 Do not commit `.env.local`.
