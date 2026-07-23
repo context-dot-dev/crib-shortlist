@@ -48,9 +48,9 @@ export async function discoverCraigslistListings(
       { timeoutMs: 40_000, maxAttempts: 2 },
     );
     const snapshot = MarkdownResponseSchema.parse(response);
-    const urls = extractListingUrls(snapshot.markdown).slice(0, 8);
-    const cards = await Promise.all(
-      urls.map((url) => scrapeListing(url, preferences, apiKey)),
+    const urls = extractListingUrls(snapshot.markdown).slice(0, 4);
+    const cards = await mapInBatches(urls, 2, (url) =>
+      scrapeListing(url, preferences, apiKey),
     );
     const apartments = cards.filter(
       (card): card is ApartmentCard => card !== null,
@@ -65,6 +65,22 @@ export async function discoverCraigslistListings(
   } catch {
     return [];
   }
+}
+
+async function mapInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const batches = Array.from(
+    { length: Math.ceil(items.length / batchSize) },
+    (_, index) => items.slice(index * batchSize, (index + 1) * batchSize),
+  );
+  const results: R[] = [];
+  for (const batch of batches) {
+    results.push(...(await Promise.all(batch.map(mapper))));
+  }
+  return results;
 }
 
 function buildSearchUrl(preferences: Preferences) {

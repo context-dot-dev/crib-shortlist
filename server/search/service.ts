@@ -29,7 +29,8 @@ export async function searchApartments(
     diagnostics: {
       source: "live-local-aggregate",
       extracted: discoveredApartments.length,
-      sources: countByProvider(discoveredApartments),
+      discoveredSources: countByProvider(discoveredApartments),
+      deckSources: countByProvider(ranked.apartments),
       qualityMatched: ranked.qualityMatches,
       coreMatched: ranked.coreMatches,
       relaxed: ranked.relaxed,

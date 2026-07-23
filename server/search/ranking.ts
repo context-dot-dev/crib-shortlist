@@ -257,7 +257,11 @@ function passesCoreGate(apartment: ApartmentCard, preferences: Preferences) {
     return false;
   }
   if (!matchesBedrooms(apartment.bedrooms, preferences.bedrooms)) return false;
-  if (/\b(rented|unavailable|leased|no longer available)\b/i.test(apartment.availability ?? "")) {
+  if (
+    /\b(just rented|unavailable|leased|no longer available)\b/i.test(
+      `${apartment.name} ${apartment.availability ?? ""} ${apartment.description ?? ""}`,
+    )
+  ) {
     return false;
   }
   return true;
@@ -277,21 +281,31 @@ function completenessScore(apartment: ApartmentCard) {
 }
 
 function diversifyApartments(apartments: ApartmentCard[]) {
-  const selected: ApartmentCard[] = [];
-  const overflow: ApartmentCard[] = [];
+  const independent: ApartmentCard[] = [];
+  const craigslist: ApartmentCard[] = [];
   const providerCounts = new Map<string, number>();
+
   apartments.forEach((apartment) => {
     const provider = apartment.provider ?? "unknown";
-    const limit = /craigslist\.org$/i.test(provider) ? 5 : 2;
+    if (/craigslist\.org$/i.test(provider)) {
+      if (craigslist.length < 2) craigslist.push(apartment);
+      return;
+    }
+
     const count = providerCounts.get(provider) ?? 0;
-    if (count < limit) {
+    if (count < 2) {
       providerCounts.set(provider, count + 1);
-      selected.push(apartment);
-    } else {
-      overflow.push(apartment);
+      independent.push(apartment);
     }
   });
-  return [...selected, ...overflow];
+
+  const selected: ApartmentCard[] = [];
+  const depth = Math.max(independent.length, craigslist.length);
+  for (let index = 0; index < depth; index += 1) {
+    if (independent[index]) selected.push(independent[index]);
+    if (craigslist[index]) selected.push(craigslist[index]);
+  }
+  return selected;
 }
 
 function normalizeListingUrl(rawUrl: string) {

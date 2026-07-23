@@ -97,6 +97,8 @@ applies shared quality gates, and returns a ranked deck.
 - Craigslist San Francisco
 - Gaetani Real Estate
 - JODI Rentals
+- Mosser Living
+- RentSFNow
 - Rentals in SF
 - SF City Rents
 

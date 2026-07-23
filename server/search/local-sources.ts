@@ -5,7 +5,7 @@ import type { ApartmentCard, ExtractedApartment, Preferences } from "./schemas";
 
 type LocalSource = {
   provider: string;
-  feedUrl: string;
+  feedUrl: string | ((preferences: Preferences) => string);
   detailUrlPattern: RegExp;
 };
 
@@ -48,6 +48,29 @@ const LOCAL_SOURCES: LocalSource[] = [
     detailUrlPattern:
       /https:\/\/www\.rentalsinsf\.com\/rentals\/[a-z0-9-]+\/?/gi,
   },
+  {
+    provider: "mosserliving.com",
+    feedUrl: (preferences) => {
+      if (preferences.bedrooms === "studio") {
+        return "https://www.mosserliving.com/san-francisco-apartments/studio/";
+      }
+      if (preferences.bedrooms === "1") {
+        return "https://www.mosserliving.com/san-francisco-apartments/1-bed/";
+      }
+      if (preferences.bedrooms === "2") {
+        return "https://www.mosserliving.com/san-francisco-apartments/2-bed/";
+      }
+      return "https://www.mosserliving.com/san-francisco-apartments/all/";
+    },
+    detailUrlPattern:
+      /https:\/\/www\.mosserliving\.com\/apartments\/[a-z0-9-]+\/?/gi,
+  },
+  {
+    provider: "rentsfnow.com",
+    feedUrl: "https://www.rentsfnow.com/apartments/",
+    detailUrlPattern:
+      /https:\/\/www\.rentsfnow\.com\/apartments\/rental\/[a-z0-9-]+/gi,
+  },
 ];
 
 const globalCache = globalThis as typeof globalThis & {
@@ -64,7 +87,7 @@ export async function discoverLocalListings(
   apiKey: string,
 ) {
   const cacheKey = JSON.stringify({
-    version: 1,
+    version: 3,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     bedrooms: preferences.bedrooms,
@@ -73,14 +96,12 @@ export async function discoverLocalListings(
   const cached = localDeckCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  const feeds = await Promise.all(
-    LOCAL_SOURCES.map((source) => scrapeFeed(source, apiKey)),
+  const feeds = await mapInBatches(LOCAL_SOURCES, 2, (source) =>
+    scrapeFeed(source, preferences, apiKey),
   );
   const candidates = selectCandidates(feeds.flat(), preferences);
-  const cards = await Promise.all(
-    candidates.map((candidate) =>
-      scrapeListing(candidate, preferences, apiKey),
-    ),
+  const cards = await mapInBatches(candidates, 2, (candidate) =>
+    scrapeListing(candidate, preferences, apiKey),
   );
   const apartments = cards.filter(
     (card): card is ApartmentCard => card !== null,
@@ -95,26 +116,38 @@ export async function discoverLocalListings(
   return apartments;
 }
 
-async function scrapeFeed(source: LocalSource, apiKey: string) {
+async function scrapeFeed(
+  source: LocalSource,
+  preferences: Preferences,
+  apiKey: string,
+) {
+  const feedUrl =
+    typeof source.feedUrl === "function"
+      ? source.feedUrl(preferences)
+      : source.feedUrl;
   try {
     const response = await requestContext(
-      markdownPath(source.feedUrl, {
+      markdownPath(feedUrl, {
         includeImages: false,
         maxAgeMs: 0,
         waitForMs: 1200,
         timeoutMs: 20_000,
       }),
       apiKey,
-      { timeoutMs: 22_000, maxAttempts: 1 },
+      { timeoutMs: 22_000, maxAttempts: 2 },
     );
     const snapshot = MarkdownResponseSchema.parse(response);
-    return candidatesFromFeed(source, snapshot.markdown);
+    return candidatesFromFeed(source, snapshot.markdown, preferences);
   } catch {
     return [];
   }
 }
 
-function candidatesFromFeed(source: LocalSource, markdown: string) {
+function candidatesFromFeed(
+  source: LocalSource,
+  markdown: string,
+  preferences: Preferences,
+) {
   const urls = [...new Set(markdown.match(source.detailUrlPattern) ?? [])];
   return urls.map((url) => {
     const urlIndex = markdown.indexOf(url);
@@ -123,6 +156,13 @@ function candidatesFromFeed(source: LocalSource, markdown: string) {
       Math.min(markdown.length, urlIndex + 900),
     );
     const beforeUrl = markdown.slice(Math.max(0, urlIndex - 260), urlIndex);
+    const label = listingLabel(beforeUrl);
+    if (source.provider === "mosserliving.com") {
+      return mosserCandidate(source, url, label, preferences);
+    }
+    if (source.provider === "rentsfnow.com") {
+      return rentSfNowCandidate(source, url, label);
+    }
     const name =
       cleanMarkdownText(beforeUrl.match(/\*\*([^*\n]+)\*\*\]\($/)?.[1] ?? "") ||
       cleanMarkdownText(beforeUrl.match(/\[([^\]\n]+)\]\($/)?.[1] ?? "") ||
@@ -154,6 +194,71 @@ function candidatesFromFeed(source: LocalSource, markdown: string) {
   });
 }
 
+function listingLabel(beforeUrl: string) {
+  const linkStart = beforeUrl.lastIndexOf("[");
+  if (linkStart < 0) return "";
+  return cleanMarkdownText(beforeUrl.slice(linkStart + 1).replace(/\]\($/, ""))
+    .replace(/\\+/g, " · ")
+    .replace(/\s*·\s*/g, " · ");
+}
+
+function mosserCandidate(
+  source: LocalSource,
+  url: string,
+  label: string,
+  preferences: Preferences,
+): LocalCandidate {
+  const parts = label.split(" · ").filter(Boolean);
+  const name = parts[0] || new URL(url).pathname.split("/").filter(Boolean).at(-1) || "";
+  const location = parts[1] ?? "San Francisco, CA";
+  const bedroomLabel = parts[2] ?? "";
+  const hasMixedUnitTypes = bedroomLabel.includes("-");
+  return {
+    provider: source.provider,
+    url,
+    name,
+    address: `${name}, San Francisco, CA`,
+    neighborhood: location.split(",")[0]?.trim() || null,
+    price: hasMixedUnitTypes
+      ? null
+      : parseNumber(label.match(/\$([\d,]+)/)?.[1]),
+    bedrooms: requestedBedroomCount(preferences.bedrooms),
+    bathrooms: null,
+    squareFeet: null,
+    availability: "Available now",
+    description: `${bedroomLabel || "Apartment"} in ${location}`,
+  };
+}
+
+function rentSfNowCandidate(
+  source: LocalSource,
+  url: string,
+  label: string,
+): LocalCandidate {
+  const parts = label.split(" · ").filter(Boolean);
+  const neighborhood = parts[0] ?? null;
+  const name = parts[1] || new URL(url).pathname.split("/").filter(Boolean).at(-1) || "";
+  return {
+    provider: source.provider,
+    url,
+    name,
+    address: `${name}, San Francisco, CA`,
+    neighborhood,
+    price: parseNumber(label.match(/\$([\d,]+)/)?.[1]),
+    bedrooms: parseBedrooms(parts[2] ?? label),
+    bathrooms: parseNumber((parts[3] ?? "").match(/(\d+(?:\.\d+)?)/)?.[1]),
+    squareFeet: null,
+    availability: "Available now",
+    description: `${parts[2] ?? "Apartment"} in ${neighborhood ?? "San Francisco"}`,
+  };
+}
+
+function requestedBedroomCount(bedrooms: Preferences["bedrooms"]) {
+  if (bedrooms === "studio") return 0;
+  if (bedrooms === "3+") return 3;
+  return Number(bedrooms);
+}
+
 function selectCandidates(
   candidates: LocalCandidate[],
   preferences: Preferences,
@@ -174,6 +279,7 @@ function selectCandidates(
       (candidate) =>
         !/\b(commercial|retail|office space)\b/i.test(candidate.description),
     )
+    .filter(isSanFranciscoCandidate)
     .filter(
       (candidate) =>
         candidate.bedrooms === null ||
@@ -188,11 +294,17 @@ function selectCandidates(
   return ranked
     .filter((candidate) => {
       const count = providerCounts.get(candidate.provider) ?? 0;
-      if (count >= 1) return false;
+      if (count >= 2) return false;
       providerCounts.set(candidate.provider, count + 1);
       return true;
     })
-    .slice(0, 4);
+    .slice(0, 6);
+}
+
+function isSanFranciscoCandidate(candidate: LocalCandidate) {
+  const location = `${candidate.address ?? ""} ${candidate.name}`;
+  const californiaCity = location.match(/,\s*([^,]+),\s*CA\b/i)?.[1]?.trim();
+  return !californiaCity || /^san francisco$/i.test(californiaCity);
 }
 
 function candidateScore(
@@ -244,10 +356,17 @@ async function scrapeListing(
         timeoutMs: 22_000,
       }),
       apiKey,
-      { timeoutMs: 24_000, maxAttempts: 1 },
+      { timeoutMs: 24_000, maxAttempts: 2 },
     );
     const html = HtmlResponseSchema.parse(response).html.replaceAll("\\/", "/");
     const text = htmlToText(html);
+    if (
+      /\b(commercial|retail|office space|storefront|warehouse)\b/i.test(
+        `${candidate.description} ${text.slice(0, 12_000)}`,
+      )
+    ) {
+      return null;
+    }
     const laundry = inferLaundry(text);
     const petsAllowed = inferPetsAllowed(text);
     const extracted: ExtractedApartment = {
@@ -266,7 +385,7 @@ async function scrapeListing(
       bedrooms: candidate.bedrooms ?? parseBedrooms(text),
       bathrooms:
         candidate.bathrooms ??
-        parseNumber(text.match(/\b(\d+(?:\.\d+)?)\s*baths?\b/i)?.[1]),
+        parseBathrooms(text, candidate.bedrooms),
       squareFeet:
         candidate.squareFeet ??
         parseNumber(
@@ -307,10 +426,17 @@ function imagesFromHtml(html: string, provider: string) {
   const preferred = urls.filter((url) =>
     provider === "rentalsinsf.com"
       ? /rentalsinsf\.com\/wp-content\/uploads\//i.test(url)
-      : /images\.cdn\.appfolio\.com\//i.test(url),
+      : provider === "mosserliving.com"
+        ? /mosserliving\.com\/wp-content\/uploads\//i.test(url)
+        : provider === "rentsfnow.com"
+          ? /cdn\.rentcafe\.com\/dmslivecafe\//i.test(url)
+          : /images\.cdn\.appfolio\.com\//i.test(url),
   );
   return cleanImageUrls(preferred)
-    .filter((url) => !/(25x25|150x100|medium\.|logo|icon|avatar|map)/i.test(url))
+    .filter(
+      (url) =>
+        !/(25x25|150x100|-\d+x\d+\.|medium\.|logo|icon|avatar|map)/i.test(url),
+    )
     .slice(0, 10);
 }
 
@@ -380,6 +506,21 @@ function parseBedrooms(text: string) {
   return /\bstudio\b/i.test(text) ? 0 : null;
 }
 
+function parseBathrooms(text: string, bedrooms: number | null) {
+  if (bedrooms !== null) {
+    const bedroomLabel = bedrooms === 0 ? "studio" : `${bedrooms}\\s*bedrooms?`;
+    const nearbyBathroom = text.match(
+      new RegExp(
+        `\\b${bedroomLabel}\\b.{0,180}?\\b(\\d+(?:\\.\\d+)?)\\s*baths?\\b`,
+        "i",
+      ),
+    )?.[1];
+    const parsedNearbyBathroom = parseNumber(nearbyBathroom);
+    if (parsedNearbyBathroom !== null) return parsedNearbyBathroom;
+  }
+  return parseNumber(text.match(/\b(\d+(?:\.\d+)?)\s*baths?\b/i)?.[1]);
+}
+
 function parseNumber(value?: string) {
   if (!value) return null;
   const parsed = Number(value.replaceAll(",", ""));
@@ -408,4 +549,20 @@ function feedDescription(context: string, name: string) {
         !/^https?:/i.test(line),
     );
   return lines.sort((a, b) => b.length - a.length)[0]?.slice(0, 280) ?? name;
+}
+
+async function mapInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const batches = Array.from(
+    { length: Math.ceil(items.length / batchSize) },
+    (_, index) => items.slice(index * batchSize, (index + 1) * batchSize),
+  );
+  const results: R[] = [];
+  for (const batch of batches) {
+    results.push(...(await Promise.all(batch.map(mapper))));
+  }
+  return results;
 }

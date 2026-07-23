@@ -1,4 +1,12 @@
 const CONTEXT_API_ROOT = "https://api.context.dev/v1";
+const CONTEXT_CONCURRENCY = 3;
+
+const globalContextQueue = globalThis as typeof globalThis & {
+  criblistContextActiveRequests?: number;
+  criblistContextWaiters?: Array<() => void>;
+};
+globalContextQueue.criblistContextActiveRequests ??= 0;
+globalContextQueue.criblistContextWaiters ??= [];
 
 class ContextRequestError extends Error {
   constructor(
@@ -24,14 +32,16 @@ export async function requestContext(
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(`${CONTEXT_API_ROOT}${path}`, {
-        ...options.init,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          ...options.init?.headers,
-        },
-        signal: AbortSignal.timeout(options.timeoutMs),
-      });
+      const response = await withContextSlot(() =>
+        fetch(`${CONTEXT_API_ROOT}${path}`, {
+          ...options.init,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            ...options.init?.headers,
+          },
+          signal: AbortSignal.timeout(options.timeoutMs),
+        }),
+      );
       const result = await response.json();
       if (!response.ok) {
         const body = result as { message?: string; error_code?: string };
@@ -63,6 +73,39 @@ export async function requestContext(
   throw lastError instanceof Error
     ? lastError
     : new Error("Context.dev request failed.");
+}
+
+async function withContextSlot<T>(request: () => Promise<T>) {
+  await acquireContextSlot();
+  try {
+    return await request();
+  } finally {
+    releaseContextSlot();
+  }
+}
+
+async function acquireContextSlot() {
+  if (
+    (globalContextQueue.criblistContextActiveRequests ?? 0) <
+    CONTEXT_CONCURRENCY
+  ) {
+    globalContextQueue.criblistContextActiveRequests =
+      (globalContextQueue.criblistContextActiveRequests ?? 0) + 1;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    globalContextQueue.criblistContextWaiters?.push(resolve);
+  });
+  globalContextQueue.criblistContextActiveRequests =
+    (globalContextQueue.criblistContextActiveRequests ?? 0) + 1;
+}
+
+function releaseContextSlot() {
+  globalContextQueue.criblistContextActiveRequests = Math.max(
+    0,
+    (globalContextQueue.criblistContextActiveRequests ?? 1) - 1,
+  );
+  globalContextQueue.criblistContextWaiters?.shift()?.();
 }
 
 export function markdownPath(
