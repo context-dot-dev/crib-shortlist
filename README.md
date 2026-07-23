@@ -1,13 +1,12 @@
-<h1 align="center">
-  <img src="./public/favicon-192.png" width="44" height="44" alt="Criblist bridge icon" />
-  criblist
-</h1>
+<p align="center">
+  <img src="./public/criblist-logo.png" width="336" alt="Criblist" />
+</p>
 
 <p align="center"><em>the sf hunt, minus the hunting.</em></p>
 
-<!-- Add the project banner here. -->
-
-<br />
+<p align="center">
+  <img src="./public/crib-cover.png" width="100%" alt="Criblist SF rentals, built with Context.dev" />
+</p>
 
 ## Built on Context.dev
 
