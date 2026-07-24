@@ -134,7 +134,9 @@ export function HomePage() {
     setCurrentIndex(0);
     setHistory([]);
 
-    const requestSource = async (source: "independent" | "craigslist") => {
+    const requestSource = async (
+      source: "fast" | "craigslist" | "extract",
+    ) => {
       const response = await fetch(`/api/apartment-search?source=${source}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -148,22 +150,29 @@ export function HomePage() {
       return result.apartments ?? [];
     };
 
-    const independentRequest = requestSource("independent");
-    const craigslistRequest = requestSource("craigslist");
-
     try {
-      const independent = await independentRequest.catch(() => []);
+      const laneResults = await Promise.all(
+        (["fast", "craigslist", "extract"] as const).map(async (source) => {
+          try {
+            const result = await requestSource(source);
+            if (searchSequence.current === sequence && result.length > 0) {
+              setApartments((current) =>
+                dedupeApartments([...current, ...result]),
+              );
+              setStage("deck");
+            }
+            return result;
+          } catch {
+            return [];
+          }
+        }),
+      );
       if (searchSequence.current !== sequence) return;
-      if (independent.length > 0) {
-        setApartments(independent);
-        setStage("deck");
+      const combined = dedupeApartments(laneResults.flat());
+      if (combined.length === 0) {
+        setApartments([]);
+        setStage("done");
       }
-
-      const craigslist = await craigslistRequest.catch(() => []);
-      if (searchSequence.current !== sequence) return;
-      const combined = dedupeApartments([...independent, ...craigslist]);
-      setApartments(combined);
-      setStage(combined.length > 0 ? "deck" : "done");
     } catch (searchError) {
       if (searchSequence.current !== sequence) return;
       setError(

@@ -1,14 +1,22 @@
-import { markdownPath, requestContext } from "./context-client";
+import { htmlPath, requestContext } from "./context-client";
+import {
+  decodeHtml,
+  fetchPublicHtml,
+  formatPostalAddress,
+  jsonLdFromHtml,
+  metaContent,
+  textFromHtml,
+} from "./html";
 import {
   cleanImageUrls,
   createApartmentCard,
   inferNeighborhood,
 } from "./ranking";
-import { MarkdownResponseSchema } from "./schemas";
+import { HtmlResponseSchema } from "./schemas";
 import type {
   ApartmentCard,
   ExtractedApartment,
-  MarkdownSnapshot,
+  ListingSnapshot,
   Preferences,
 } from "./schemas";
 
@@ -47,7 +55,7 @@ export async function discoverCraigslistListings(
   apiKey: string,
 ) {
   const cacheKey = JSON.stringify({
-    version: 4,
+    version: 6,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     bedrooms: preferences.bedrooms,
@@ -70,7 +78,7 @@ export async function discoverCraigslistListings(
             candidate.name,
           ),
       )
-      .slice(0, 6)
+      .slice(0, 10)
       .map((candidate) => candidate.url);
     const cards = await Promise.all(
       urls.map((url) => scrapeListing(url, preferences)),
@@ -99,16 +107,16 @@ async function discoverSearchCandidates(
   if (cached && cached.expiresAt > Date.now()) return cached.candidates;
 
   const response = await requestContext(
-    markdownPath(searchUrl, {
+    htmlPath(searchUrl, {
       maxAgeMs: 2 * 60 * 1000,
-      waitForMs: 300,
-      timeoutMs: 12_000,
+      waitForMs: 0,
+      timeoutMs: 25_000,
     }),
     apiKey,
-    { timeoutMs: 14_000, maxAttempts: 1 },
+    { timeoutMs: 28_000, maxAttempts: 1 },
   );
-  const snapshot = MarkdownResponseSchema.parse(response);
-  const candidates = extractSearchCandidates(snapshot.markdown);
+  const snapshot = HtmlResponseSchema.parse(response);
+  const candidates = extractCraigslistSearchCandidates(snapshot.html);
   craigslistSearchCache.set(searchUrl, {
     expiresAt: Date.now() + 2 * 60 * 1000,
     candidates,
@@ -117,8 +125,13 @@ async function discoverSearchCandidates(
 }
 
 function buildSearchUrl(preferences: Preferences) {
-  const searchUrl = new URL("https://sfbay.craigslist.org/search/sfc/apa");
+  const searchUrl = new URL(
+    "https://www.craigslist.org/search/subarea/sfc",
+  );
+  searchUrl.searchParams.set("cat", "apa");
   searchUrl.searchParams.set("availabilityMode", "0");
+  searchUrl.searchParams.set("min_price", String(preferences.budgetMin));
+  searchUrl.searchParams.set("max_price", String(preferences.budgetMax));
   Object.entries(bedroomParams(preferences.bedrooms)).forEach(([key, value]) =>
     searchUrl.searchParams.set(key, value),
   );
@@ -127,14 +140,16 @@ function buildSearchUrl(preferences: Preferences) {
 
 function bedroomParams(bedrooms: Preferences["bedrooms"]) {
   if (bedrooms === "studio") {
-    return { min_bedrooms: "0", max_bedrooms: "0" };
+    return { hub: "studio-apartment" };
   }
+  if (bedrooms === "1") return { hub: "one-bedroom-apartment" };
+  if (bedrooms === "2") return { hub: "two-bedroom-apartment" };
   if (bedrooms === "3+") return { min_bedrooms: "3" };
-  return { min_bedrooms: bedrooms, max_bedrooms: bedrooms };
+  return {};
 }
 
-function extractSearchCandidates(markdown: string) {
-  const normalized = markdown.replaceAll("\\/", "/").replaceAll("&amp;", "&");
+export function extractCraigslistSearchCandidates(html: string) {
+  const normalized = html.replaceAll("\\/", "/").replaceAll("&amp;", "&");
   const candidates = [
     ...normalized.matchAll(
       /<li class="cl-static-search-result"[\s\S]*?<\/li>/gi,
@@ -184,22 +199,14 @@ async function scrapeListing(
 
 async function fetchListingSnapshot(
   url: string,
-): Promise<MarkdownSnapshot> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "text/html,application/xhtml+xml",
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36",
-    },
-    signal: AbortSignal.timeout(4_000),
-  });
-  if (!response.ok) {
-    throw new Error(`Craigslist returned ${response.status}.`);
-  }
-  return snapshotFromHtml(url, await response.text());
+): Promise<ListingSnapshot> {
+  return snapshotFromHtml(url, await fetchPublicHtml(url, 5_000));
 }
 
-function snapshotFromHtml(url: string, html: string): MarkdownSnapshot {
+export function snapshotFromHtml(
+  url: string,
+  html: string,
+): ListingSnapshot {
   const pageTitle = decodeHtml(
     html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "",
   ).trim();
@@ -235,14 +242,7 @@ function snapshotFromHtml(url: string, html: string): MarkdownSnapshot {
       ) ?? [],
     ),
   ];
-  const body = decodeHtml(
-    html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, "\n"),
-  )
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n");
+  const body = textFromHtml(html);
   const jsonLd = jsonLdFromHtml(html);
   const markdown = `# ${postingTitle || pageTitle}\n\n${body}\n\n${images.join("\n")}`;
   return {
@@ -260,53 +260,8 @@ function snapshotFromHtml(url: string, html: string): MarkdownSnapshot {
   };
 }
 
-function metaContent(html: string, key: string) {
-  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return (
-    html.match(
-      new RegExp(
-        `<meta[^>]+(?:name|property)=["']${escapedKey}["'][^>]+content=["']([^"']*)["']`,
-        "i",
-      ),
-    )?.[1] ??
-    html.match(
-      new RegExp(
-        `<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["']${escapedKey}["']`,
-        "i",
-      ),
-    )?.[1]
-  );
-}
-
-function jsonLdFromHtml(html: string) {
-  return [...html.matchAll(
-    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
-  )].flatMap((match) => {
-    try {
-      const value = JSON.parse(match[1]) as
-        | Record<string, unknown>
-        | Record<string, unknown>[];
-      return Array.isArray(value) ? value : [value];
-    } catch {
-      return [];
-    }
-  });
-}
-
-function decodeHtml(value: string) {
-  return value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", "\"")
-    .replaceAll("&#39;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replace(/&#(\d+);/g, (_, code: string) =>
-      String.fromCodePoint(Number(code)),
-    );
-}
-
-function cardFromSnapshot(
-  snapshot: MarkdownSnapshot,
+export function cardFromSnapshot(
+  snapshot: ListingSnapshot,
   preferences: Preferences,
 ) {
   const heading = snapshot.markdown.match(/^# (.+)$/m)?.[1]?.trim();
@@ -332,7 +287,18 @@ function cardFromSnapshot(
     .replace(/^\d+br\s*-\s*/i, "")
     .replace(/^[\d,]+\s*ft\s*2\s*-\s*/i, "")
     .trim();
-  const name = titleWithoutPrice.replace(/\s+\([^()]*(?:\)|$)/, "").trim();
+  const rawName = titleWithoutPrice
+    .replace(/\s+\([^()]*(?:\)|$)/, "")
+    .trim();
+  const advertisedPrice = Number(
+    rawName.match(/\$([\d,]+)/)?.[1]?.replaceAll(",", "") ?? NaN,
+  );
+  const hasMismatchedHeadlinePrice =
+    Number.isFinite(advertisedPrice) && advertisedPrice !== price;
+  const name = (hasMismatchedHeadlinePrice
+    ? rawName.replace(/\$[\d,]+/g, "").replace(/\s{2,}/g, " ")
+    : rawName
+  ).trim();
   if (
     /\b\d+\s*-\s*\d+\s*(?:br|beds?|bedrooms?)\b/i.test(name) ||
     /\b(room for rent|private room|shared room|inlaw room)\b/i.test(name)
@@ -359,14 +325,15 @@ function cardFromSnapshot(
     return null;
   }
 
-  const listingData = snapshot.metadata.jsonLd?.find(
-    (entry) => entry["@type"] === "Apartment",
+  const listingData = snapshot.metadata.jsonLd?.find((entry) =>
+    ["Apartment", "House", "Residence", "SingleFamilyResidence"].includes(
+      String(entry["@type"]),
+    ),
   );
   const addressData = listingData?.address;
   const address =
-    typeof addressData === "object" && addressData !== null
-      ? formatPostalAddress(addressData as Record<string, unknown>)
-      : (snapshot.markdown.match(/^## (.+)$/m)?.[1] ?? null);
+    formatPostalAddress(addressData) ??
+    (snapshot.markdown.match(/^## (.+)$/m)?.[1] ?? null);
   if (!address || !/\bsan francisco\b/i.test(address)) return null;
   const bathroomsValue = listingData?.numberOfBathroomsTotal;
   const bathrooms =
@@ -402,6 +369,11 @@ function cardFromSnapshot(
     amenities: inferAmenities(snapshot.markdown, laundry),
     description: sourceDescription || name,
     caveats: [
+      ...(hasMismatchedHeadlinePrice
+        ? [
+            `The headline mentioned a different rent; the listing currently shows $${price.toLocaleString()}.`,
+          ]
+        : []),
       "Craigslist listing: verify the poster and tour before paying.",
     ],
   };
@@ -468,18 +440,4 @@ function hasScamSignals(text: string) {
   return /(must\s+text\s+me\s+your\s+email|kindly\s+(?:text|send|reply)|wire\s+(?:the\s+)?money|western\s+union|pay\s+before\s+(?:viewing|touring)|i(?:'m| am)\s+(?:currently\s+)?out\s+of\s+(?:town|country)|crypto(?:currency)?\s+payment)/i.test(
     text,
   );
-}
-
-function formatPostalAddress(address: Record<string, unknown>) {
-  return [
-    address.streetAddress,
-    address.addressLocality,
-    address.addressRegion,
-    address.postalCode,
-  ]
-    .filter(
-      (value): value is string =>
-        typeof value === "string" && value.length > 0,
-    )
-    .join(", ");
 }

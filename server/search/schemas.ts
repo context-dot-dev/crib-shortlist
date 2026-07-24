@@ -15,7 +15,7 @@ export const PreferencesSchema = z.object({
   minSquareFeet: z.number().min(0).max(5000),
 });
 
-export const MarkdownResponseSchema = z.object({
+export const ListingSnapshotSchema = z.object({
   success: z.literal(true),
   markdown: z.string(),
   contentLength: z.number(),
@@ -34,6 +34,28 @@ export const MarkdownResponseSchema = z.object({
 export const HtmlResponseSchema = z
   .object({
     html: z.string(),
+  })
+  .passthrough();
+
+export const ContextListingSchema = z.object({
+  name: z.string().nullable(),
+  url: z.string().nullable(),
+  price: z.number().nullable(),
+  bedrooms: z.number().nullable(),
+  bathrooms: z.number().nullable(),
+  neighborhood: z.string().nullable(),
+  address: z.string().nullable(),
+  squareFeet: z.number().nullable(),
+  petsAllowed: z.boolean().nullable(),
+  images: z.array(z.string()),
+});
+
+export const ExtractListingsResponseSchema = z
+  .object({
+    status: z.string(),
+    data: z.object({
+      listings: z.array(ContextListingSchema),
+    }),
   })
   .passthrough();
 
@@ -63,7 +85,8 @@ export const ApartmentCardSchema = z.object({
 
 export type Preferences = z.infer<typeof PreferencesSchema>;
 export type ApartmentCard = z.infer<typeof ApartmentCardSchema>;
-export type MarkdownSnapshot = z.infer<typeof MarkdownResponseSchema>;
+export type ListingSnapshot = z.infer<typeof ListingSnapshotSchema>;
+export type ContextListing = z.infer<typeof ContextListingSchema>;
 
 export type ExtractedApartment = {
   name: string | null;
