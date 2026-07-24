@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M17 11V13H6V11H17Z" fill="currentColor" data-color="color-2" />
+  <path d="M5 11V13H0V11H5Z" fill="currentColor" data-color="color-2" />
+  <path d="M24 11V13H19V11H24Z" fill="currentColor" data-color="color-2" />
+  <path d="M16 4.5C16 3.11929 17.1193 2 18.5 2C19.8807 2 21 3.11929 21 4.5V19.5C21 20.8807 19.8807 22 18.5 22C17.1193 22 16 20.8807 16 19.5V4.5Z" fill="currentColor" />
+  <path d="M3 4.5C3 3.11929 4.11929 2 5.5 2C6.88071 2 8 3.11929 8 4.5V19.5C8 20.8807 6.88071 22 5.5 22C4.11929 22 3 20.8807 3 19.5V4.5Z" fill="currentColor" />
+</svg>

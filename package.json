@@ -1,0 +1,48 @@
+{
+  "name": "crib-shortlist",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A swipeable shortlist of live San Francisco apartment listings.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/context-dot-dev/crib-shortlist.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "apartments",
+    "san-francisco",
+    "context-dev",
+    "nextjs"
+  ],
+  "dependencies": {
+    "@lisse/react": "^0.3.2",
+    "@tailwindcss/postcss": "^4.3.0",
+    "clsx": "^2.1.1",
+    "motion": "^12.38.0",
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "^16.2.6",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3"
+  }
+}
