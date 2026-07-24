@@ -18,6 +18,7 @@ import {
   type LaundryPreference,
   type Preferences,
 } from "./model";
+import { ProviderSources } from "./provider-sources";
 
 export function SearchSetup({
   preferences,
@@ -58,6 +59,7 @@ export function SearchSetup({
           tell criblist what you want. it pulls listings that are live right
           now and hands you a deck to swipe through.
         </p>
+        <ProviderSources />
       </div>
 
       <PanelCard radius={22} className="p-4 sm:p-5">

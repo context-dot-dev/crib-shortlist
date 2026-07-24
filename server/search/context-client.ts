@@ -108,29 +108,6 @@ function releaseContextSlot() {
   globalContextQueue.criblistContextWaiters?.shift()?.();
 }
 
-export function markdownPath(
-  url: string,
-  options: {
-    maxAgeMs: number;
-    waitForMs: number;
-    timeoutMs: number;
-    includeImages?: boolean;
-  },
-) {
-  const params = new URLSearchParams({
-    url,
-    includeLinks: "true",
-    includeImages: String(options.includeImages ?? true),
-    useMainContentOnly: "true",
-    shortenBase64Images: "true",
-    maxAgeMs: String(options.maxAgeMs),
-    waitForMs: String(options.waitForMs),
-    timeoutMS: String(options.timeoutMs),
-    country: "us",
-  });
-  return `/web/scrape/markdown?${params.toString()}`;
-}
-
 export function htmlPath(
   url: string,
   options: {

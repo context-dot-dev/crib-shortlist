@@ -51,7 +51,13 @@ export function rankApartments(
   const coreMatches = apartments.filter((apartment) =>
     passesCoreGate(apartment, preferences),
   );
-  const pool = qualityMatches.length > 0 ? qualityMatches : coreMatches;
+  const strict = hasStrictPreferences(preferences);
+  const pool =
+    qualityMatches.length > 0
+      ? qualityMatches
+      : strict
+        ? []
+        : coreMatches;
   const ranked = pool
     .map((apartment) => ({
       ...apartment,
@@ -63,16 +69,25 @@ export function rankApartments(
     apartments: diversifyApartments(ranked).slice(0, 8),
     qualityMatches: qualityMatches.length,
     coreMatches: coreMatches.length,
-    relaxed: qualityMatches.length === 0 && coreMatches.length > 0,
+    relaxed:
+      !strict && qualityMatches.length === 0 && coreMatches.length > 0,
   };
 }
 
 export function dedupeApartments(apartments: ApartmentCard[]) {
-  const seen = new Set<string>();
+  const seenUrls = new Set<string>();
+  const seenListings = new Set<string>();
   return apartments.filter((apartment) => {
-    const key = normalizeListingUrl(apartment.url) ?? apartment.url;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const urlKey = normalizeListingUrl(apartment.url) ?? apartment.url;
+    const listingKey = listingFingerprint(apartment);
+    if (
+      seenUrls.has(urlKey) ||
+      (listingKey !== null && seenListings.has(listingKey))
+    ) {
+      return false;
+    }
+    seenUrls.add(urlKey);
+    if (listingKey !== null) seenListings.add(listingKey);
     return true;
   });
 }
@@ -135,7 +150,11 @@ export function cleanImageUrls(urls: string[]) {
       const url = new URL(rawUrl);
       const normalized = url.toString();
       if (!url.protocol.startsWith("http") || seen.has(normalized)) return false;
-      if (/(logo|icon|avatar|favicon|sprite|badge|pixel|tracking|map)/i.test(normalized)) {
+      if (
+        /(logo|icon|avatar|favicon|sprite|badge|pixel|tracking|map|coming[_-]?soon|no[_-]?photo)/i.test(
+          normalized,
+        )
+      ) {
         return false;
       }
       seen.add(normalized);
@@ -218,10 +237,12 @@ function passesQualityGate(
   if (apartment.bathrooms === null && preferences.bathroomsMin > 1) return false;
   if (
     preferences.neighborhoods.length > 0 &&
-    apartment.neighborhood &&
-    !preferences.neighborhoods.some((neighborhood) =>
-      apartment.neighborhood?.toLowerCase().includes(neighborhood.toLowerCase()),
-    )
+    (!apartment.neighborhood ||
+      !preferences.neighborhoods.some((neighborhood) =>
+        apartment.neighborhood
+          ?.toLowerCase()
+          .includes(neighborhood.toLowerCase()),
+      ))
   ) {
     return false;
   }
@@ -245,6 +266,17 @@ function passesQualityGate(
   if (preferences.dishwasher && apartment.dishwasher !== true) return false;
   if (preferences.pets && apartment.petsAllowed !== true) return false;
   return true;
+}
+
+function hasStrictPreferences(preferences: Preferences) {
+  return (
+    preferences.bathroomsMin > 1 ||
+    preferences.neighborhoods.length > 0 ||
+    preferences.laundry !== "any" ||
+    preferences.dishwasher ||
+    preferences.pets ||
+    preferences.minSquareFeet > 0
+  );
 }
 
 function passesCoreGate(apartment: ApartmentCard, preferences: Preferences) {
@@ -319,4 +351,19 @@ function normalizeListingUrl(rawUrl: string) {
   } catch {
     return null;
   }
+}
+
+function listingFingerprint(apartment: ApartmentCard) {
+  if (!apartment.address || apartment.price === null) return null;
+  const address = apartment.address
+    .toLowerCase()
+    .replace(/\b(?:apt|apartment|unit|#)\s*[\w-]+\b/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  return [
+    apartment.provider ?? "unknown",
+    address,
+    apartment.price,
+    apartment.bedrooms ?? "unknown",
+  ].join("|");
 }

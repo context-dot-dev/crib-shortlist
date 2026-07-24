@@ -17,16 +17,20 @@ ranked apartment deck.
 
 Context.dev powers the marketplace-discovery side of the search pipeline:
 
-1. The **Markdown API** renders live Craigslist inventory with listing links
-   intact.
-2. Criblist validates those detail pages and combines them with Mosser's live
-   structured inventory.
-3. The shared pipeline normalizes, deduplicates, filters, and ranks the combined
-   inventory into one consistent deck.
+1. The **HTML API** renders live Craigslist search results through automatic
+   proxy escalation, preserving the exact listing links.
+2. The **Extract API** turns J. Wavro's live San Francisco inventory page into
+   schema-validated listing candidates.
+3. The **Brand API** enriches the landing page with the identity of every
+   provider in the live search network.
+4. Criblist verifies the detail pages and combines them with live Brick +
+   Timber, RentSFNow, and Mosser inventory.
+5. The shared pipeline normalizes, deduplicates, filters, and ranks all five
+   providers into one consistent deck.
 
 The Context.dev API key stays server-side. Source adapters run concurrently,
-short-lived caches make repeat searches fast, and failed sources cannot take
-down the entire search.
+short-lived caches make repeat searches fast, and the first direct feeds open
+the deck without waiting for the deeper Context extraction lane.
 
 ## The product
 
@@ -65,6 +69,8 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run dev
 npm run lint
 npm run typecheck
+npm test
+npm run stress:search
 npm run build
 npm run start
 ```
@@ -81,21 +87,29 @@ app/
 server/search/
 ├── context-client.ts          Context.dev transport
 ├── craigslist.ts              Craigslist discovery and parsing
+├── html.ts                    shared public-page parsing
+├── jwavro.ts                  Context Extract inventory adapter
 ├── mosser.ts                  Structured Mosser inventory adapter
+├── rentbt.ts                  Brick + Timber live inventory adapter
+├── rentsfnow.ts               RentSFNow live inventory adapter
 ├── ranking.ts                 filtering, scoring, and diversity
 ├── schemas.ts                 request and response contracts
 └── service.ts                 search orchestration
 ```
 
-The browser sends one validated preference object to parallel source requests
-at `POST /api/apartment-search`. Mosser results open the deck immediately;
-Context-powered Craigslist results join it in the background. Both adapters
-normalize into one card contract and pass through the same quality gates.
+The browser sends one validated preference object to three parallel lanes at
+`POST /api/apartment-search`: fast direct feeds, Context-powered Craigslist,
+and Context Extract. The first successful lane opens the deck; later matches
+join it without resetting progress. Every adapter normalizes into one card
+contract and passes through the same strict quality gates.
 
 ## Live sources
 
 - Craigslist San Francisco
+- Brick + Timber
+- RentSFNow
 - Mosser Living
+- J. Wavro Associates
 
 Each adapter starts from the provider's current-availability page instead of a
 stale search index.
@@ -104,7 +118,7 @@ stale search index.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `CONTEXT_DEV_API_KEY` | yes | Live Craigslist discovery through Context.dev |
+| `CONTEXT_DEV_API_KEY` | yes | Context.dev HTML, Extract, and Brand API access |
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical URL for social metadata |
 
 Do not commit `.env.local`.
