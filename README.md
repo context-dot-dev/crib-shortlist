@@ -55,7 +55,7 @@ Requirements:
 
 ```bash
 cp .env.example .env.local
-# Add CONTEXT_DEV_API_KEY to .env.local
+# Add the Context.dev and Turso credentials to .env.local
 
 npm install
 npm run dev
@@ -71,6 +71,8 @@ npm run lint
 npm run typecheck
 npm test
 npm run stress:search
+npm run cache:warm
+npm run cache:watch -- --interval-minutes=30
 npm run build
 npm run start
 ```
@@ -82,7 +84,8 @@ app/
 ├── _components/criblist/      product UI and client state
 ├── _components/ui/            small reusable visual primitives
 ├── _lib/                      shared browser utilities
-└── api/apartment-search/      thin HTTP route
+├── api/apartment-search/      thin search HTTP route
+└── api/cron/refresh-listings/ protected inventory refresh route
 
 server/search/
 ├── context-client.ts          Context.dev transport
@@ -95,13 +98,18 @@ server/search/
 ├── ranking.ts                 filtering, scoring, and diversity
 ├── schemas.ts                 request and response contracts
 └── service.ts                 search orchestration
+
+server/cache/
+├── listings.ts                Turso-backed listing inventory
+└── refresh.ts                 full source and bedroom refresh orchestration
 ```
 
 The browser sends one validated preference object to three parallel lanes at
 `POST /api/apartment-search`: fast direct feeds, Context-powered Craigslist,
 and Context Extract. The first successful lane opens the deck; later matches
 join it without resetting progress. Every adapter normalizes into one card
-contract and passes through the same strict quality gates.
+contract and passes through the same strict quality gates. Fresh Turso
+inventory is served first; live adapters refill missing or expired segments.
 
 ## Live sources
 
@@ -119,9 +127,18 @@ stale search index.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `CONTEXT_DEV_API_KEY` | yes | Context.dev HTML, Extract, and Brand API access |
+| `TURSO_DATABASE_URL` | recommended | Persistent listing inventory |
+| `TURSO_AUTH_TOKEN` | recommended | Authenticates listing cache reads and writes |
+| `CRON_SECRET` | production | Protects the scheduled inventory refresh route |
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical URL for social metadata |
 
 Do not commit `.env.local`.
+
+Vercel calls the protected inventory route every 30 minutes in production.
+For local development, run `npm run cache:warm` once or use
+`npm run cache:watch -- --interval-minutes=30`. Cache coverage expires after
+45 minutes. Listings are never served after 12 hours without being seen again
+and are pruned during the next refresh.
 
 ## Product principles
 
@@ -129,7 +146,7 @@ Do not commit `.env.local`.
 - No dead listings to make the deck look larger.
 - No listing without a usable photo.
 - Source diversity without weakening user filters.
-- Fast repeat searches through short-lived server caches.
+- Fast searches through a continuously refreshed Turso inventory.
 
 ## License
 

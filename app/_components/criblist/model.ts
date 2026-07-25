@@ -81,7 +81,8 @@ export const MONEY = new Intl.NumberFormat("en-US", {
 
 export const PREFS_KEY = "criblist.prefs.v1";
 export const SAVED_KEY = "criblist.saved.v1";
-export const SESSION_KEY = "criblist.session.v1";
+export const SEEN_KEY = "criblist.seen.v1";
+export const SESSION_KEY = "criblist.session.v2";
 export const EASE = [0.23, 1, 0.32, 1] as const;
 
 export function formatBedrooms(bedrooms: number | null) {

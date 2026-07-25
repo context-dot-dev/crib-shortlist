@@ -19,7 +19,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "stress:search": "node scripts/stress-search.mjs"
+    "stress:search": "node scripts/stress-search.mjs",
+    "cache:warm": "tsx scripts/warm-listings.ts",
+    "cache:watch": "tsx scripts/warm-listings.ts --watch"
   },
   "keywords": [
     "apartments",
@@ -28,6 +30,7 @@
     "nextjs"
   ],
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "@lisse/react": "^0.3.2",
     "@tailwindcss/postcss": "^4.3.0",
     "clsx": "^2.1.1",

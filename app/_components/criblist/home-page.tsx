@@ -10,6 +10,7 @@ import {
   DEFAULT_PREFERENCES,
   PREFS_KEY,
   SAVED_KEY,
+  SEEN_KEY,
   SESSION_KEY,
   type ApartmentCard,
   type Decision,
@@ -25,6 +26,7 @@ export function HomePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [history, setHistory] = useState<Decision[]>([]);
   const [saved, setSaved] = useState<ApartmentCard[]>([]);
+  const [seenUrls, setSeenUrls] = useState<string[]>([]);
   const [savedOpen, setSavedOpen] = useState(false);
   const [detail, setDetail] = useState<ApartmentCard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +56,13 @@ export function HomePage() {
     try {
       const rawSaved = localStorage.getItem(SAVED_KEY);
       if (rawSaved) setSaved(JSON.parse(rawSaved) as ApartmentCard[]);
+      const rawSeen = localStorage.getItem(SEEN_KEY);
+      if (rawSeen) setSeenUrls(JSON.parse(rawSeen) as string[]);
       const rawPrefs = localStorage.getItem(PREFS_KEY);
       if (rawPrefs) {
-        setPreferences({ ...DEFAULT_PREFERENCES, ...(JSON.parse(rawPrefs) as Preferences) });
+        setPreferences(
+          restorePreferences(JSON.parse(rawPrefs) as Partial<Preferences>),
+        );
       }
       const rawSession = localStorage.getItem(SESSION_KEY);
       if (rawSession) {
@@ -85,6 +91,15 @@ export function HomePage() {
       /* storage may be unavailable */
     }
   }, [saved, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify(seenUrls));
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [seenUrls, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -134,45 +149,34 @@ export function HomePage() {
     setCurrentIndex(0);
     setHistory([]);
 
-    const requestSource = async (
-      source: "fast" | "craigslist" | "extract",
-    ) => {
-      const response = await fetch(`/api/apartment-search?source=${source}`, {
+    try {
+      const excludeUrls = [
+        ...new Set([
+          ...seenUrls,
+          ...saved.map((apartment) => apartment.url),
+        ]),
+      ].slice(-200);
+      const response = await fetch("/api/apartment-search?source=all", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(preferences),
+        body: JSON.stringify({ ...preferences, excludeUrls }),
       });
       const result = (await response.json()) as {
         apartments?: ApartmentCard[];
         error?: string;
       };
-      if (!response.ok) throw new Error(result.error ?? "the search hit a snag.");
-      return result.apartments ?? [];
-    };
-
-    try {
-      const laneResults = await Promise.all(
-        (["fast", "craigslist", "extract"] as const).map(async (source) => {
-          try {
-            const result = await requestSource(source);
-            if (searchSequence.current === sequence && result.length > 0) {
-              setApartments((current) =>
-                dedupeApartments([...current, ...result]),
-              );
-              setStage("deck");
-            }
-            return result;
-          } catch {
-            return [];
-          }
-        }),
-      );
+      if (!response.ok) {
+        throw new Error(result.error ?? "the search hit a snag.");
+      }
       if (searchSequence.current !== sequence) return;
-      const combined = dedupeApartments(laneResults.flat());
-      if (combined.length === 0) {
+      const nextApartments = result.apartments ?? [];
+      if (nextApartments.length === 0) {
         setApartments([]);
         setStage("done");
+        return;
       }
+      setApartments(nextApartments);
+      setStage("deck");
     } catch (searchError) {
       if (searchSequence.current !== sequence) return;
       setError(
@@ -180,12 +184,17 @@ export function HomePage() {
       );
       setStage("setup");
     }
-  }, [preferences]);
+  }, [preferences, saved, seenUrls]);
 
   const decide = useCallback(
     (kind: Decision["kind"]) => {
       if (!currentApartment) return;
       if (kind === "save") addSaved(currentApartment);
+      setSeenUrls((current) =>
+        current.includes(currentApartment.url)
+          ? current
+          : [...current, currentApartment.url].slice(-200),
+      );
       setHistory((current) => [...current, { apartment: currentApartment, kind }]);
       setDetail(null);
       if (currentIndex >= apartments.length - 1) {
@@ -240,7 +249,7 @@ export function HomePage() {
               <Searching key="searching" preferences={preferences} />
             ) : stage === "deck" && currentApartment ? (
               <ApartmentDeck
-                key="deck"
+                key={currentApartment.url}
                 apartment={currentApartment}
                 nextApartment={apartments[currentIndex + 1]}
                 afterNext={apartments[currentIndex + 2]}
@@ -300,8 +309,22 @@ export function HomePage() {
   );
 }
 
-function dedupeApartments(apartments: ApartmentCard[]) {
-  return [
-    ...new Map(apartments.map((apartment) => [apartment.url, apartment])).values(),
-  ];
+function restorePreferences(stored: Partial<Preferences>): Preferences {
+  const budgetMin = boundedBudget(stored.budgetMin, 0);
+  const budgetMax = boundedBudget(stored.budgetMax, 1_000);
+  return {
+    ...DEFAULT_PREFERENCES,
+    ...stored,
+    budgetMin: Math.min(budgetMin, budgetMax),
+    budgetMax: Math.max(budgetMin, budgetMax),
+  };
+}
+
+function boundedBudget(value: number | undefined, minimum: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return minimum === 0
+      ? DEFAULT_PREFERENCES.budgetMin
+      : DEFAULT_PREFERENCES.budgetMax;
+  }
+  return Math.min(20_000, Math.max(minimum, value));
 }

@@ -15,6 +15,10 @@ export const PreferencesSchema = z.object({
   minSquareFeet: z.number().min(0).max(5000),
 });
 
+export const SearchRequestSchema = PreferencesSchema.extend({
+  excludeUrls: z.array(z.string().url()).max(200).optional(),
+});
+
 export const ListingSnapshotSchema = z.object({
   success: z.literal(true),
   markdown: z.string(),

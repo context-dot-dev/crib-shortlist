@@ -1,47 +1,91 @@
+import {
+  readListingCache,
+  storeSearchListings,
+} from "../cache/listings";
 import { discoverCraigslistListings } from "./craigslist";
 import { discoverJwavroListings } from "./jwavro";
 import { discoverMosserListings } from "./mosser";
-import { countByProvider, dedupeApartments, rankApartments } from "./ranking";
+import {
+  countByProvider,
+  dedupeApartments,
+  excludeApartments,
+  rankApartments,
+} from "./ranking";
 import { discoverRentBtListings } from "./rentbt";
 import { discoverRentSfNowListings } from "./rentsfnow";
 import type { ApartmentCard, Preferences } from "./schemas";
+import {
+  selectedSources,
+  type SearchSource,
+  type SourceId,
+} from "./sources";
 
-export type SearchSource =
-  | "all"
-  | "fast"
-  | "independent"
-  | "craigslist"
-  | "extract";
-
-type SourceId =
-  | "brick-timber"
-  | "rentsfnow"
-  | "mosser"
-  | "craigslist"
-  | "jwavro";
+export type { SearchSource } from "./sources";
 
 export async function searchApartments(
   preferences: Preferences,
   apiKey: string,
   source: SearchSource = "all",
+  excludedUrls: string[] = [],
 ) {
   const startedAt = Date.now();
   const sources = selectedSources(source);
-  const measurements = await Promise.all(
-    sources.map(async (sourceId) => ({
-      sourceId,
-      ...(await measure(() => runSource(sourceId, preferences, apiKey))),
-    })),
-  );
+  const cached = await safeReadCache(preferences, sources, excludedUrls);
+  if (cached.coverageFresh) {
+    return {
+      apartments: cached.apartments,
+      analyzed: cached.analyzed,
+      timings: {
+        discoveryMs: Date.now() - startedAt,
+        totalMs: Date.now() - startedAt,
+        sources: Object.fromEntries(
+          sources.map((sourceId) => [sourceId, 0]),
+        ),
+      },
+      diagnostics: {
+        source: "turso-listing-cache",
+        requestedLane: source,
+        extracted: cached.analyzed,
+        discoveredSources: countByProvider(cached.apartments),
+        deckSources: countByProvider(cached.apartments),
+        qualityMatched: cached.qualityMatches,
+        coreMatched: cached.coreMatches,
+        relaxed: cached.relaxed,
+        cache: {
+          hit: true,
+          ageMs: cached.ageMs,
+        },
+      },
+    };
+  }
+
+  const measurements = await discoverSources(sources, preferences, apiKey);
   const discoveredAt = Date.now();
   const discoveredApartments = dedupeApartments(
-    measurements.flatMap((measurement) => measurement.value),
+    excludeApartments(
+      measurements.flatMap((measurement) => measurement.value),
+      excludedUrls,
+    ),
   );
   const ranked = rankApartments(discoveredApartments, preferences);
+  await storeSearchListings(
+    measurements.map((measurement) => ({
+      sourceId: measurement.sourceId,
+      apartments: measurement.value,
+    })),
+    preferences.bedrooms,
+  ).catch(() => false);
+  const useCachedFallback =
+    ranked.apartments.length === 0 && cached.apartments.length > 0;
+  const apartments = useCachedFallback
+    ? cached.apartments
+    : ranked.apartments;
 
   return {
-    apartments: ranked.apartments,
-    analyzed: discoveredApartments.length,
+    apartments,
+    analyzed: useCachedFallback
+      ? cached.analyzed
+      : discoveredApartments.length,
     timings: {
       discoveryMs: discoveredAt - startedAt,
       totalMs: Date.now() - startedAt,
@@ -53,29 +97,58 @@ export async function searchApartments(
       ),
     },
     diagnostics: {
-      source: "live-multi-source-aggregate",
+      source: useCachedFallback
+        ? "turso-stale-fallback"
+        : "live-multi-source-aggregate",
       requestedLane: source,
       extracted: discoveredApartments.length,
       discoveredSources: countByProvider(discoveredApartments),
-      deckSources: countByProvider(ranked.apartments),
-      qualityMatched: ranked.qualityMatches,
-      coreMatched: ranked.coreMatches,
-      relaxed: ranked.relaxed,
+      deckSources: countByProvider(apartments),
+      qualityMatched: useCachedFallback
+        ? cached.qualityMatches
+        : ranked.qualityMatches,
+      coreMatched: useCachedFallback
+        ? cached.coreMatches
+        : ranked.coreMatches,
+      relaxed: useCachedFallback ? cached.relaxed : ranked.relaxed,
+      cache: {
+        hit: useCachedFallback,
+        ageMs: cached.ageMs,
+      },
     },
   };
 }
 
-function selectedSources(source: SearchSource): SourceId[] {
-  if (source === "fast") return ["brick-timber", "rentsfnow", "mosser"];
-  if (source === "craigslist") return ["craigslist"];
-  if (source === "extract") return ["jwavro"];
-  if (source === "independent") {
-    return ["brick-timber", "rentsfnow", "mosser", "jwavro"];
-  }
-  return ["brick-timber", "rentsfnow", "mosser", "craigslist", "jwavro"];
+export function inventoryPreferences(
+  bedrooms: Preferences["bedrooms"],
+): Preferences {
+  return {
+    budgetMin: 0,
+    budgetMax: 20_000,
+    bedrooms,
+    bathroomsMin: 1,
+    neighborhoods: [],
+    moveIn: "flexible",
+    laundry: "any",
+    dishwasher: false,
+    pets: false,
+    minSquareFeet: 0,
+  };
 }
 
-function runSource(
+export async function refreshInventorySegment(
+  sourceId: SourceId,
+  preferences: Preferences,
+  apiKey: string,
+) {
+  const result = await measure(() => runSource(sourceId, preferences, apiKey));
+  return {
+    apartments: result.value,
+    durationMs: result.durationMs,
+  };
+}
+
+export function runSource(
   source: SourceId,
   preferences: Preferences,
   apiKey: string,
@@ -87,6 +160,40 @@ function runSource(
     return discoverCraigslistListings(preferences, apiKey);
   }
   return discoverJwavroListings(preferences, apiKey);
+}
+
+async function discoverSources(
+  sources: SourceId[],
+  preferences: Preferences,
+  apiKey: string,
+) {
+  return Promise.all(
+    sources.map(async (sourceId) => ({
+      sourceId,
+      ...(await measure(() => runSource(sourceId, preferences, apiKey))),
+    })),
+  );
+}
+
+async function safeReadCache(
+  preferences: Preferences,
+  sources: SourceId[],
+  excludedUrls: string[],
+) {
+  try {
+    return await readListingCache(preferences, sources, excludedUrls);
+  } catch {
+    return {
+      configured: false,
+      coverageFresh: false,
+      ageMs: null,
+      apartments: [],
+      analyzed: 0,
+      qualityMatches: 0,
+      coreMatches: 0,
+      relaxed: false,
+    };
+  }
 }
 
 async function measure<T>(operation: () => Promise<T>) {

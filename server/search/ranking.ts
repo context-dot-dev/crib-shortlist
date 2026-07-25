@@ -41,6 +41,36 @@ export function createApartmentCard(
   };
 }
 
+export function prepareApartmentForPreferences(
+  apartment: ApartmentCard,
+  preferences: Preferences,
+): ApartmentCard {
+  const extracted = extractedApartmentFromCard(apartment);
+  const scamPenalty = apartment.catches.some((catchText) =>
+    /suspicious contact or payment wording/i.test(catchText),
+  )
+    ? 18
+    : 0;
+  const sourceCatches = apartment.catches.filter(
+    (catchText) => !isPreferenceCatch(catchText),
+  );
+
+  return {
+    ...apartment,
+    matchScore: Math.max(
+      0,
+      calculateMatchScore(extracted, apartment.images, preferences) -
+        scamPenalty,
+    ),
+    matchReasons: buildMatchReasons(extracted, preferences),
+    catches: [
+      ...sourceCatches,
+      ...buildCatches(extracted, preferences),
+    ].slice(0, 4),
+    preferenceFit: matchesBedrooms(apartment.bedrooms, preferences.bedrooms),
+  };
+}
+
 export function rankApartments(
   apartments: ApartmentCard[],
   preferences: Preferences,
@@ -74,6 +104,37 @@ export function rankApartments(
   };
 }
 
+function extractedApartmentFromCard(
+  apartment: ApartmentCard,
+): ExtractedApartment {
+  return {
+    name: apartment.name,
+    address: apartment.address,
+    neighborhood: apartment.neighborhood,
+    price: apartment.price,
+    bedrooms: apartment.bedrooms,
+    bathrooms: apartment.bathrooms,
+    squareFeet: apartment.squareFeet,
+    availability: apartment.availability,
+    laundry: apartment.laundry,
+    dishwasher: apartment.dishwasher,
+    petsAllowed: apartment.petsAllowed,
+    amenities: apartment.amenities,
+    description: apartment.description,
+    caveats: [],
+  };
+}
+
+function isPreferenceCatch(catchText: string) {
+  return [
+    "Bathroom count is unverified",
+    "Square footage is unverified",
+    "Laundry is unverified",
+    "Dishwasher is unverified",
+    "Pet policy is unverified",
+  ].includes(catchText);
+}
+
 export function dedupeApartments(apartments: ApartmentCard[]) {
   const seenUrls = new Set<string>();
   const seenListings = new Set<string>();
@@ -89,6 +150,34 @@ export function dedupeApartments(apartments: ApartmentCard[]) {
     seenUrls.add(urlKey);
     if (listingKey !== null) seenListings.add(listingKey);
     return true;
+  });
+}
+
+export function excludeApartments(
+  apartments: ApartmentCard[],
+  excludedUrls: string[],
+) {
+  if (excludedUrls.length === 0) return apartments;
+
+  const normalizedExcludedUrls = new Set(
+    excludedUrls.map((url) => normalizeListingUrl(url) ?? url),
+  );
+  const excludedFingerprints = new Set(
+    apartments.flatMap((apartment) => {
+      const normalizedUrl =
+        normalizeListingUrl(apartment.url) ?? apartment.url;
+      if (!normalizedExcludedUrls.has(normalizedUrl)) return [];
+      const fingerprint = listingFingerprint(apartment);
+      return fingerprint ? [fingerprint] : [];
+    }),
+  );
+
+  return apartments.filter((apartment) => {
+    const normalizedUrl =
+      normalizeListingUrl(apartment.url) ?? apartment.url;
+    if (normalizedExcludedUrls.has(normalizedUrl)) return false;
+    const fingerprint = listingFingerprint(apartment);
+    return !fingerprint || !excludedFingerprints.has(fingerprint);
   });
 }
 
@@ -360,10 +449,9 @@ function listingFingerprint(apartment: ApartmentCard) {
     .replace(/\b(?:apt|apartment|unit|#)\s*[\w-]+\b/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+  if (!/\d/.test(address)) return null;
   return [
-    apartment.provider ?? "unknown",
     address,
-    apartment.price,
     apartment.bedrooms ?? "unknown",
   ].join("|");
 }

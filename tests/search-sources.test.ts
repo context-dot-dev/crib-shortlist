@@ -8,9 +8,15 @@ import {
 } from "../server/search/craigslist";
 import { fetchPublicHtml } from "../server/search/html";
 import { jwavroCardFromHtml } from "../server/search/jwavro";
-import { rankApartments } from "../server/search/ranking";
+import {
+  dedupeApartments,
+  excludeApartments,
+  prepareApartmentForPreferences,
+  rankApartments,
+} from "../server/search/ranking";
 import { rentBtCardFromHit } from "../server/search/rentbt";
 import { extractRentSfNowCandidates } from "../server/search/rentsfnow";
+import { selectedSources } from "../server/search/sources";
 import type {
   ApartmentCard,
   ContextListing,
@@ -263,6 +269,94 @@ test("does not silently relax explicit must-have filters", () => {
   assert.equal(ranked.relaxed, false);
 });
 
+test("recalculates cached cards for the current preferences", () => {
+  const apartment: ApartmentCard = {
+    name: "Cached one bedroom",
+    url: "https://example.com/cached-listing",
+    provider: "example.com",
+    images: ["https://example.com/listing.jpg"],
+    price: 3_000,
+    bedrooms: 1,
+    bathrooms: 1,
+    neighborhood: "Mission",
+    address: "123 Main Street, San Francisco, CA",
+    squareFeet: 700,
+    floorLevel: null,
+    availability: "Available now",
+    description: null,
+    laundry: "in-unit",
+    dishwasher: true,
+    petsAllowed: true,
+    amenities: ["Dishwasher", "In-unit laundry"],
+    matchScore: 10,
+    matchReasons: [],
+    catches: ["Laundry is unverified", "Verify availability."],
+    preferenceFit: false,
+  };
+  const prepared = prepareApartmentForPreferences(apartment, {
+    ...preferences,
+    neighborhoods: ["Mission"],
+    laundry: "in-unit",
+    dishwasher: true,
+    pets: true,
+    minSquareFeet: 600,
+  });
+
+  assert.equal(prepared.preferenceFit, true);
+  assert.ok(prepared.matchScore > apartment.matchScore);
+  assert.ok(prepared.matchReasons.includes("Within budget"));
+  assert.ok(!prepared.catches.includes("Laundry is unverified"));
+  assert.ok(prepared.catches.includes("Verify availability."));
+});
+
+test("keeps one card per building across providers", () => {
+  const first = apartmentCard({
+    url: "https://first.example/540-leavenworth/104",
+    provider: "first.example",
+    address: "540 Leavenworth Street, Unit 104, San Francisco, CA",
+  });
+  const second = apartmentCard({
+    url: "https://second.example/listing/540-leavenworth",
+    provider: "second.example",
+    address: "540 Leavenworth Street, Apt 209, San Francisco, CA",
+  });
+
+  assert.deepEqual(dedupeApartments([first, second]), [first]);
+});
+
+test("does not recycle an excluded building under another listing URL", () => {
+  const seen = apartmentCard({
+    url: "https://first.example/540-leavenworth/104",
+    provider: "first.example",
+    address: "540 Leavenworth Street, Unit 104, San Francisco, CA",
+  });
+  const duplicate = apartmentCard({
+    url: "https://second.example/listing/540-leavenworth",
+    provider: "second.example",
+    address: "540 Leavenworth Street, Apt 209, San Francisco, CA",
+  });
+  const fresh = apartmentCard({
+    url: "https://second.example/listing/123-valencia",
+    provider: "second.example",
+    address: "123 Valencia Street, San Francisco, CA",
+  });
+
+  assert.deepEqual(
+    excludeApartments([seen, duplicate, fresh], [seen.url]),
+    [fresh],
+  );
+});
+
+test("maps client search lanes to persistent inventory sources", () => {
+  assert.deepEqual(selectedSources("fast"), [
+    "brick-timber",
+    "rentsfnow",
+    "mosser",
+  ]);
+  assert.deepEqual(selectedSources("craigslist"), ["craigslist"]);
+  assert.deepEqual(selectedSources("extract"), ["jwavro"]);
+});
+
 test("coalesces concurrent requests for the same public page", async () => {
   const originalFetch = globalThis.fetch;
   let requests = 0;
@@ -289,3 +383,32 @@ test("coalesces concurrent requests for the same public page", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+function apartmentCard(
+  patch: Partial<ApartmentCard> = {},
+): ApartmentCard {
+  return {
+    name: "One bedroom",
+    url: "https://example.com/listing",
+    provider: "example.com",
+    images: ["https://example.com/listing.jpg"],
+    price: 3_000,
+    bedrooms: 1,
+    bathrooms: 1,
+    neighborhood: "Tenderloin",
+    address: "540 Leavenworth Street, San Francisco, CA",
+    squareFeet: 600,
+    floorLevel: null,
+    availability: "Available now",
+    description: null,
+    laundry: "in-building",
+    dishwasher: null,
+    petsAllowed: null,
+    amenities: [],
+    matchScore: 90,
+    matchReasons: [],
+    catches: [],
+    preferenceFit: true,
+    ...patch,
+  };
+}

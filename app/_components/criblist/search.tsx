@@ -503,9 +503,14 @@ function BudgetRange({
           <input
             type="number"
             min={0}
+            max={20_000}
             step={100}
             value={minimum}
-            onChange={(event) => onMinimumChange(Number(event.target.value) || 0)}
+            onChange={(event) =>
+              onMinimumChange(
+                Math.min(20_000, Number(event.target.value) || 0),
+              )
+            }
             className="min-w-0 flex-1 bg-transparent text-[14px] font-medium tracking-[0.2px] tabular-nums outline-none"
           />
         </span>
@@ -519,10 +524,15 @@ function BudgetRange({
           <span className="text-[13px] text-secondary">$</span>
           <input
             type="number"
-            min={0}
+            min={1_000}
+            max={20_000}
             step={100}
             value={maximum}
-            onChange={(event) => onMaximumChange(Number(event.target.value) || 0)}
+            onChange={(event) =>
+              onMaximumChange(
+                Math.min(20_000, Number(event.target.value) || 0),
+              )
+            }
             className="min-w-0 flex-1 bg-transparent text-[14px] font-medium tracking-[0.2px] tabular-nums outline-none"
           />
         </span>
