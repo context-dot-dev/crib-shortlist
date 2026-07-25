@@ -67,23 +67,9 @@ export function ApartmentDeck({
     (kind: Decision["kind"]) => {
       if (animating) return;
       setAnimating(true);
-      const target = kind === "save" ? 900 : -900;
-      if (reduceMotion) {
-        x.set(0);
-        setAnimating(false);
-        onDecision(kind);
-        return;
-      }
-      void animate(x, target, {
-        duration: 0.28,
-        ease: [0.4, 0, 1, 1],
-      }).then(() => {
-        x.jump(0);
-        setAnimating(false);
-        onDecision(kind);
-      });
+      onDecision(kind);
     },
-    [animating, onDecision, reduceMotion, x],
+    [animating, onDecision],
   );
 
   const settleBack = useCallback(() => {
