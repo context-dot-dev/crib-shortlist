@@ -75,10 +75,8 @@ export function ApartmentDeck({
         return;
       }
       void animate(x, target, {
-        type: "spring",
-        stiffness: 550,
-        damping: 60,
-        velocity: kind === "save" ? 400 : -400,
+        duration: 0.28,
+        ease: [0.4, 0, 1, 1],
       }).then(() => {
         x.jump(0);
         setAnimating(false);
