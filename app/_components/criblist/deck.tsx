@@ -133,10 +133,13 @@ export function ApartmentDeck({
         restDelta: 6,
         restSpeed: 120,
       }).then(() => {
-        // Swap the deck synchronously, then reset x before the next paint so
-        // the incoming card renders centered with no flash of the old one.
-        flushSync(() => onDecision(kind));
+        // Reset x BEFORE swapping the deck. Motion applies value changes on
+        // the next frame, but this callback runs after the current frame's
+        // loop — jumping after the swap paints one frame with the incoming
+        // card still offscreen (a visible flicker). Jumping first means the
+        // flushSync render mounts every card already in its resting pose.
         x.jump(0);
+        flushSync(() => onDecision(kind));
         setAnimating(false);
       });
     },
@@ -151,8 +154,10 @@ export function ApartmentDeck({
     }
     setAnimating(true);
     const direction = lastDecision === "pass" ? -1 : 1;
-    flushSync(() => onUndo());
+    // Same ordering as commit: move x first so the restored card mounts
+    // offscreen instead of flashing centered for a frame before animating.
     x.jump(direction * flyDistance());
+    flushSync(() => onUndo());
     void animate(x, 0, { type: "spring", stiffness: 260, damping: 30 }).then(
       () => setAnimating(false),
     );
