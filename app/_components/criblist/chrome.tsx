@@ -131,15 +131,19 @@ export function Header({
   );
 }
 
+/**
+ * Mobile-only: on md+ the fortune is the fixed bottom-right ContextFortune,
+ * so the footer would render as an empty (but click-eating) strip.
+ */
 export function Footer() {
   return (
-    <footer className="nook-footer flex flex-col items-center gap-5 py-10 text-center">
+    <footer className="flex flex-col items-center gap-5 py-10 text-center md:hidden">
       <a
         href="https://context.dev"
         target="_blank"
         rel="noreferrer"
         aria-label="visit context.dev"
-        className="mt-1 w-[220px] origin-center -rotate-1 transition duration-300 hover:rotate-0 hover:scale-[1.02] md:hidden"
+        className="mt-1 w-[220px] origin-center -rotate-1 transition duration-300 hover:rotate-0 hover:scale-[1.02]"
       >
         <FadeImage
           src="/context-fortune.png"

@@ -194,17 +194,6 @@ body {
 }
 
 @layer components {
-  @media (min-width: 768px) {
-    .nook-canvas .nook-footer {
-      position: absolute;
-      right: 0;
-      bottom: 16px;
-      left: 0;
-      gap: 0;
-      padding-block: 0;
-    }
-  }
-
   @media (min-width: 768px) and (max-height: 900px) {
     .nook-canvas .nook-header {
       height: 64px;
