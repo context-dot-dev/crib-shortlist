@@ -13,6 +13,7 @@ export function createApartmentCard(
 ): ApartmentCard {
   const provider = new URL(source.url).hostname.replace(/^www\./, "");
   const cleanImages = cleanImageUrls(images).slice(0, 10);
+  const availability = formatAvailability(extracted.availability);
   return {
     name: extracted.name ?? source.title,
     url: source.url,
@@ -25,14 +26,17 @@ export function createApartmentCard(
     address: extracted.address,
     squareFeet: extracted.squareFeet,
     floorLevel: null,
-    availability: extracted.availability,
+    availability,
     description: extracted.description ?? source.description,
     laundry: extracted.laundry,
     dishwasher: extracted.dishwasher,
     petsAllowed: extracted.petsAllowed,
     amenities: extracted.amenities.slice(0, 12),
     matchScore: calculateMatchScore(extracted, cleanImages, preferences),
-    matchReasons: buildMatchReasons(extracted, preferences),
+    matchReasons: buildMatchReasons(
+      { ...extracted, availability },
+      preferences,
+    ),
     catches: [
       ...extracted.caveats,
       ...buildCatches(extracted, preferences),
@@ -54,15 +58,20 @@ export function prepareApartmentForPreferences(
   const sourceCatches = apartment.catches.filter(
     (catchText) => !isPreferenceCatch(catchText),
   );
+  const availability = formatAvailability(extracted.availability);
 
   return {
     ...apartment,
+    availability,
     matchScore: Math.max(
       0,
       calculateMatchScore(extracted, apartment.images, preferences) -
         scamPenalty,
     ),
-    matchReasons: buildMatchReasons(extracted, preferences),
+    matchReasons: buildMatchReasons(
+      { ...extracted, availability },
+      preferences,
+    ),
     catches: [
       ...sourceCatches,
       ...buildCatches(extracted, preferences),
@@ -252,6 +261,26 @@ export function cleanImageUrls(urls: string[]) {
       return false;
     }
   });
+}
+
+export function formatAvailability(
+  availability: string | null,
+  now = new Date(),
+) {
+  if (!availability) return availability;
+  const timestamp = Date.parse(availability);
+  if (!Number.isFinite(timestamp)) return availability;
+
+  const availableDate = new Date(timestamp);
+  if (timestamp <= now.getTime()) return "Available now";
+  const includeYear = availableDate.getFullYear() !== now.getFullYear();
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(includeYear ? { year: "numeric" as const } : {}),
+    timeZone: "UTC",
+  }).format(availableDate);
+  return `Available ${formattedDate}`;
 }
 
 function calculateMatchScore(

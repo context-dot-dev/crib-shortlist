@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { POST as apartmentSearchPost } from "../app/api/apartment-search/route";
 import { selectPreferredBrandLogo } from "../server/brand/providers";
 import {
   buildSearchUrl,
@@ -16,6 +17,7 @@ import { jwavroCardFromHtml } from "../server/search/jwavro";
 import {
   dedupeApartments,
   excludeApartments,
+  formatAvailability,
   prepareApartmentForPreferences,
   rankApartments,
 } from "../server/search/ranking";
@@ -40,6 +42,21 @@ const preferences: Preferences = {
   pets: false,
   minSquareFeet: 0,
 };
+
+test("returns a client error for malformed search JSON", async () => {
+  const response = await apartmentSearchPost(
+    new Request("http://localhost/api/apartment-search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    }),
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    error: "check the apartment filters and try again.",
+  });
+});
 
 test("prefers a square brand icon over a larger wordmark", () => {
   const selected = selectPreferredBrandLogo([
@@ -356,6 +373,39 @@ test("recalculates cached cards for the current preferences", () => {
   assert.ok(prepared.matchReasons.includes("Within budget"));
   assert.ok(!prepared.catches.includes("Laundry is unverified"));
   assert.ok(prepared.catches.includes("Verify availability."));
+});
+
+test("formats listing availability for people instead of exposing ISO dates", () => {
+  const now = new Date("2026-07-25T12:00:00.000Z");
+
+  assert.equal(
+    formatAvailability("2026-07-05T00:00:00.000000Z", now),
+    "Available now",
+  );
+  assert.equal(
+    formatAvailability("2026-08-15T00:00:00.000000Z", now),
+    "Available Aug 15",
+  );
+  assert.equal(
+    formatAvailability("2027-01-03T00:00:00.000000Z", now),
+    "Available Jan 3, 2027",
+  );
+  assert.equal(formatAvailability("Recently posted", now), "Recently posted");
+
+  const prepared = prepareApartmentForPreferences(
+    apartmentCard({
+      availability: "2026-07-05T00:00:00.000000Z",
+      matchReasons: [
+        "Correct bedroom count",
+        "Within budget",
+        "2026-07-05T00:00:00.000000Z",
+      ],
+    }),
+    preferences,
+  );
+  assert.equal(prepared.availability, "Available now");
+  assert.ok(prepared.matchReasons.includes("Available now"));
+  assert.ok(!prepared.matchReasons.some((reason) => reason.includes("2026-07-05")));
 });
 
 test("keeps one card per building across providers", () => {

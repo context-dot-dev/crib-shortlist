@@ -153,7 +153,10 @@ export function DetailDrawer({
               ) : null}
 
               {apartment.matchReasons.length > 0 ? (
-                <ReasonList title="why it fits" items={apartment.matchReasons} />
+                <ReasonList
+                  title="why it fits"
+                  items={apartment.matchReasons.map(readableReason)}
+                />
               ) : null}
               {apartment.catches.length > 0 ? (
                 <ReasonList
@@ -385,7 +388,10 @@ function SpecStrip({ apartment }: { apartment: ApartmentCard }) {
 }
 
 function MoveInRow({ availability }: { availability: string | null }) {
-  const immediate = !availability || /now|immediate|today/i.test(availability);
+  const displayAvailability = readableAvailability(availability);
+  const immediate =
+    !displayAvailability ||
+    /now|immediate|today/i.test(displayAvailability);
   return (
     <div className="flex items-center gap-2.5 border-y border-border py-3.5">
       <Icon glyph={IconCalendarFillDuo18} size={18} className="text-foreground/60" />
@@ -398,10 +404,31 @@ function MoveInRow({ availability }: { availability: string | null }) {
             : "bg-surface-sunken text-foreground",
         )}
       >
-        {immediate ? "available now" : availability}
+        {immediate ? "available now" : displayAvailability}
       </span>
     </div>
   );
+}
+
+function readableAvailability(availability: string | null) {
+  if (!availability) return availability;
+  const timestamp = Date.parse(availability);
+  if (!Number.isFinite(timestamp)) return availability;
+  if (timestamp <= Date.now()) return "available now";
+
+  const availableDate = new Date(timestamp);
+  const includeYear =
+    availableDate.getFullYear() !== new Date().getFullYear();
+  return `available ${new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(includeYear ? { year: "numeric" as const } : {}),
+    timeZone: "UTC",
+  }).format(availableDate).toLowerCase()}`;
+}
+
+function readableReason(reason: string) {
+  return readableAvailability(reason) ?? reason;
 }
 
 export function SavedPanel({

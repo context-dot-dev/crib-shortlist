@@ -11,8 +11,17 @@ export async function POST(request: Request) {
   try {
     const sourceParameter = new URL(request.url).searchParams.get("source");
     const source = isSearchSource(sourceParameter) ? sourceParameter : "all";
+    let requestBody: unknown;
+    try {
+      requestBody = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "check the apartment filters and try again." },
+        { status: 400 },
+      );
+    }
     const parsedRequest = SearchRequestSchema.safeParse(
-      await request.json(),
+      requestBody,
     );
     if (!parsedRequest.success) {
       return NextResponse.json(
