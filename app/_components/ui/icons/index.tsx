@@ -10,6 +10,7 @@ import {
   CaretLeft,
   CurrencyDollar,
   Funnel,
+  GithubLogo,
   Heart,
   HouseLine,
   Minus,
@@ -61,6 +62,7 @@ export const IconDishwasherFill24 = withDefaults(Sparkle, 24, "fill");
 export const IconDumbbellFill24 = withDefaults(Barbell, 24, "fill");
 export const IconFilterFill18 = withDefaults(Funnel, 18, "fill");
 export const IconFilterFillDuo18 = withDefaults(Funnel, 18, "duotone");
+export const IconGithubLogoFill18 = withDefaults(GithubLogo, 18, "fill");
 export const IconHeartFill18 = withDefaults(Heart, 18, "fill");
 export const IconHeartFillDuo18 = withDefaults(Heart, 18, "duotone");
 export const IconHouseSearchFill24 = withDefaults(HouseLine, 24, "duotone");

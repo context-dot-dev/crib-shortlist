@@ -7,6 +7,7 @@ import { Icon } from "@/_components/ui/icon";
 import {
   IconArrowLeftFill18,
   IconArrowRightFill18,
+  IconGithubLogoFill18,
   IconHeartFillDuo18,
 } from "@/_components/ui/icons";
 import { cn } from "@/_lib/utils";
@@ -34,7 +35,20 @@ export function Header({
 }) {
   const previews = saved.slice(0, 3);
   return (
-    <header className="flex h-[88px] w-full items-center justify-center pt-4">
+    <header className="relative flex h-[88px] w-full items-center justify-center pt-4">
+      <div className="absolute inset-y-0 left-0 flex items-center pt-4">
+        <a
+          href="https://github.com/context-dot-dev/crib-shortlist"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="open source on github"
+          className="group inline-flex h-9 items-center gap-2 rounded-full bg-card px-2.5 text-[12px] font-medium text-secondary shadow-input outline-none transition-colors hover:text-foreground sm:px-3.5"
+        >
+          <Icon glyph={IconGithubLogoFill18} size={16} />
+          <span className="hidden sm:inline">open source</span>
+        </a>
+      </div>
+
       <div className="inline-flex h-9 items-center gap-3">
         <button
           type="button"
