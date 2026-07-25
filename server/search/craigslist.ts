@@ -11,6 +11,7 @@ import {
   cleanImageUrls,
   createApartmentCard,
   inferNeighborhood,
+  matchesBedrooms,
 } from "./ranking";
 import { HtmlResponseSchema } from "./schemas";
 import type {
@@ -55,7 +56,7 @@ export async function discoverCraigslistListings(
   apiKey: string,
 ) {
   const cacheKey = JSON.stringify({
-    version: 6,
+    version: 7,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     bedrooms: preferences.bedrooms,
@@ -64,38 +65,34 @@ export async function discoverCraigslistListings(
   const cached = craigslistDeckCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  try {
-    const candidates = await discoverSearchCandidates(preferences, apiKey);
-    const urls = candidates
-      .filter(
-        (candidate) =>
-          candidate.price >= preferences.budgetMin &&
-          candidate.price <= preferences.budgetMax,
-      )
-      .filter(
-        (candidate) =>
-          !/\b(just rented|unavailable|leased|no longer available)\b/i.test(
-            candidate.name,
-          ),
-      )
-      .slice(0, 10)
-      .map((candidate) => candidate.url);
-    const cards = await Promise.all(
-      urls.map((url) => scrapeListing(url, preferences)),
-    );
-    const apartments = cards.filter(
-      (card): card is ApartmentCard => card !== null,
-    );
-    if (apartments.length > 0) {
-      craigslistDeckCache.set(cacheKey, {
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        apartments,
-      });
-    }
-    return apartments;
-  } catch {
-    return [];
+  const candidates = await discoverSearchCandidates(preferences, apiKey);
+  const urls = candidates
+    .filter(
+      (candidate) =>
+        candidate.price >= preferences.budgetMin &&
+        candidate.price <= preferences.budgetMax,
+    )
+    .filter(
+      (candidate) =>
+        !/\b(just rented|unavailable|leased|no longer available)\b/i.test(
+          candidate.name,
+        ),
+    )
+    .slice(0, 10)
+    .map((candidate) => candidate.url);
+  const cards = await Promise.all(
+    urls.map((url) => scrapeListing(url, preferences)),
+  );
+  const apartments = cards.filter(
+    (card): card is ApartmentCard => card !== null,
+  );
+  if (apartments.length > 0) {
+    craigslistDeckCache.set(cacheKey, {
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      apartments,
+    });
   }
+  return apartments;
 }
 
 async function discoverSearchCandidates(
@@ -124,7 +121,7 @@ async function discoverSearchCandidates(
   return candidates;
 }
 
-function buildSearchUrl(preferences: Preferences) {
+export function buildSearchUrl(preferences: Preferences) {
   const searchUrl = new URL(
     "https://www.craigslist.org/search/subarea/sfc",
   );
@@ -140,10 +137,14 @@ function buildSearchUrl(preferences: Preferences) {
 
 function bedroomParams(bedrooms: Preferences["bedrooms"]) {
   if (bedrooms === "studio") {
-    return { hub: "studio-apartment" };
+    return { min_bedrooms: "0", max_bedrooms: "0" };
   }
-  if (bedrooms === "1") return { hub: "one-bedroom-apartment" };
-  if (bedrooms === "2") return { hub: "two-bedroom-apartment" };
+  if (bedrooms === "1") {
+    return { min_bedrooms: "1", max_bedrooms: "1" };
+  }
+  if (bedrooms === "2") {
+    return { min_bedrooms: "2", max_bedrooms: "2" };
+  }
   if (bedrooms === "3+") return { min_bedrooms: "3" };
   return {};
 }
@@ -276,7 +277,9 @@ export function cardFromSnapshot(
       : preferences.bedrooms === "studio"
         ? 0
         : null;
-  if (bedrooms === null) return null;
+  if (bedrooms === null || !matchesBedrooms(bedrooms, preferences.bedrooms)) {
+    return null;
+  }
   const squareFeetText = heading.match(/\b([\d,]+)\s*ft\s*2\b/i)?.[1];
   const squareFeet = squareFeetText
     ? Number(squareFeetText.replaceAll(",", ""))

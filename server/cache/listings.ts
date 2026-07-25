@@ -19,7 +19,7 @@ const MAX_CACHED_CANDIDATES = 120;
 const globalDatabase = globalThis as typeof globalThis & {
   criblistDatabase?: ReturnType<typeof createClient>;
   criblistDatabaseSignature?: string;
-  criblistDatabaseSchema?: Promise<void>;
+  criblistDatabaseSchemaV2?: Promise<void>;
 };
 
 type CachedSearch = {
@@ -60,8 +60,9 @@ export async function readListingCache(
       {
         sql: `
           SELECT payload, refreshed_at
-          FROM listing_cache
+          FROM listing_cache_v2
           WHERE source_id IN (${sourcePlaceholders})
+            AND bedroom_key = ?
             AND refreshed_at >= ?
             AND price >= ?
             AND price <= ?
@@ -71,6 +72,7 @@ export async function readListingCache(
         `,
         args: [
           ...sourceIds,
+          preferences.bedrooms,
           now - LISTING_MAX_AGE_MS,
           preferences.budgetMin,
           preferences.budgetMax,
@@ -81,7 +83,7 @@ export async function readListingCache(
       {
         sql: `
           SELECT source_id, refreshed_at
-          FROM listing_cache_segments
+          FROM listing_cache_segments_v2
           WHERE source_id IN (${sourcePlaceholders})
             AND bedroom_key = ?
             AND refreshed_at >= ?
@@ -142,18 +144,12 @@ export async function storeSearchListings(
 
   await ensureSchema(client);
   const refreshedAt = Date.now();
-  const statements = sources.flatMap(({ sourceId, apartments }) => [
-    ...apartments.map((apartment) =>
-      listingUpsert(sourceId, apartment, refreshedAt),
+  const statements = sources.flatMap(({ sourceId, apartments }) =>
+    apartments.map((apartment) =>
+      listingUpsert(sourceId, bedrooms, apartment, refreshedAt),
     ),
-    segmentUpsert(
-      sourceId,
-      bedrooms,
-      apartments.length,
-      0,
-      refreshedAt,
-    ),
-  ]);
+  );
+  if (statements.length === 0) return true;
   await client.batch(statements, "write");
   return true;
 }
@@ -178,8 +174,9 @@ export async function storeInventorySegment({
   const refreshedAt = Date.now();
   await client.batch(
     [
+      segmentDelete(sourceId, bedrooms),
       ...apartments.map((apartment) =>
-        listingUpsert(sourceId, apartment, refreshedAt),
+        listingUpsert(sourceId, bedrooms, apartment, refreshedAt),
       ),
       segmentUpsert(
         sourceId,
@@ -209,19 +206,21 @@ function databaseClient() {
   ) {
     globalDatabase.criblistDatabase = createClient({ url, authToken });
     globalDatabase.criblistDatabaseSignature = signature;
-    globalDatabase.criblistDatabaseSchema = undefined;
+    globalDatabase.criblistDatabaseSchemaV2 = undefined;
   }
   return globalDatabase.criblistDatabase;
 }
 
 function ensureSchema(client: ReturnType<typeof createClient>) {
-  globalDatabase.criblistDatabaseSchema ??= client
+  globalDatabase.criblistDatabaseSchemaV2 ??= client
     .batch(
       [
         `
-          CREATE TABLE IF NOT EXISTS listing_cache (
-            url TEXT PRIMARY KEY,
+          CREATE TABLE IF NOT EXISTS listing_cache_v2 (
+            cache_key TEXT PRIMARY KEY,
             source_id TEXT NOT NULL,
+            bedroom_key TEXT NOT NULL,
+            url TEXT NOT NULL,
             provider TEXT,
             price REAL,
             bedrooms REAL,
@@ -230,20 +229,21 @@ function ensureSchema(client: ReturnType<typeof createClient>) {
           )
         `,
         `
-          CREATE INDEX IF NOT EXISTS listing_cache_search
-          ON listing_cache (
+          CREATE INDEX IF NOT EXISTS listing_cache_v2_search
+          ON listing_cache_v2 (
             source_id,
+            bedroom_key,
             bedrooms,
             price,
             refreshed_at
           )
         `,
         `
-          CREATE INDEX IF NOT EXISTS listing_cache_refresh
-          ON listing_cache (refreshed_at)
+          CREATE INDEX IF NOT EXISTS listing_cache_v2_refresh
+          ON listing_cache_v2 (refreshed_at)
         `,
         `
-          CREATE TABLE IF NOT EXISTS listing_cache_segments (
+          CREATE TABLE IF NOT EXISTS listing_cache_segments_v2 (
             source_id TEXT NOT NULL,
             bedroom_key TEXT NOT NULL,
             refreshed_at INTEGER NOT NULL,
@@ -256,7 +256,7 @@ function ensureSchema(client: ReturnType<typeof createClient>) {
       "write",
     )
     .then(() => undefined);
-  return globalDatabase.criblistDatabaseSchema;
+  return globalDatabase.criblistDatabaseSchemaV2;
 }
 
 export async function pruneExpiredListings() {
@@ -265,7 +265,7 @@ export async function pruneExpiredListings() {
 
   await ensureSchema(client);
   const result = await client.execute({
-    sql: "DELETE FROM listing_cache WHERE refreshed_at < ?",
+    sql: "DELETE FROM listing_cache_v2 WHERE refreshed_at < ?",
     args: [Date.now() - LISTING_MAX_AGE_MS],
   });
   return result.rowsAffected;
@@ -273,23 +273,28 @@ export async function pruneExpiredListings() {
 
 function listingUpsert(
   sourceId: SourceId,
+  bedrooms: Preferences["bedrooms"],
   apartment: ApartmentCard,
   refreshedAt: number,
 ) {
   return {
     sql: `
-      INSERT INTO listing_cache (
-        url,
+      INSERT INTO listing_cache_v2 (
+        cache_key,
         source_id,
+        bedroom_key,
+        url,
         provider,
         price,
         bedrooms,
         refreshed_at,
         payload
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(url) DO UPDATE SET
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(cache_key) DO UPDATE SET
         source_id = excluded.source_id,
+        bedroom_key = excluded.bedroom_key,
+        url = excluded.url,
         provider = excluded.provider,
         price = excluded.price,
         bedrooms = excluded.bedrooms,
@@ -297,14 +302,29 @@ function listingUpsert(
         payload = excluded.payload
     `,
     args: [
-      apartment.url,
+      `${sourceId}:${bedrooms}:${apartment.url}`,
       sourceId,
+      bedrooms,
+      apartment.url,
       apartment.provider,
       apartment.price,
       apartment.bedrooms,
       refreshedAt,
       JSON.stringify(apartment),
     ],
+  };
+}
+
+function segmentDelete(
+  sourceId: SourceId,
+  bedrooms: Preferences["bedrooms"],
+) {
+  return {
+    sql: `
+      DELETE FROM listing_cache_v2
+      WHERE source_id = ? AND bedroom_key = ?
+    `,
+    args: [sourceId, bedrooms],
   };
 }
 
@@ -317,7 +337,7 @@ function segmentUpsert(
 ) {
   return {
     sql: `
-      INSERT INTO listing_cache_segments (
+      INSERT INTO listing_cache_segments_v2 (
         source_id,
         bedroom_key,
         refreshed_at,

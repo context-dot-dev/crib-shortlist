@@ -7,11 +7,21 @@ const HTML_HEADERS = {
 const globalHtmlCache = globalThis as typeof globalThis & {
   criblistHtmlCache?: Map<string, { expiresAt: number; html: string }>;
   criblistHtmlRequests?: Map<string, Promise<string>>;
+  criblistUrlHealthCache?: Map<
+    string,
+    { expiresAt: number; available: boolean }
+  >;
+  criblistUrlHealthRequests?: Map<string, Promise<boolean>>;
 };
 const htmlCache = globalHtmlCache.criblistHtmlCache ?? new Map();
 const htmlRequests = globalHtmlCache.criblistHtmlRequests ?? new Map();
+const urlHealthCache = globalHtmlCache.criblistUrlHealthCache ?? new Map();
+const urlHealthRequests =
+  globalHtmlCache.criblistUrlHealthRequests ?? new Map();
 globalHtmlCache.criblistHtmlCache = htmlCache;
 globalHtmlCache.criblistHtmlRequests = htmlRequests;
+globalHtmlCache.criblistUrlHealthCache = urlHealthCache;
+globalHtmlCache.criblistUrlHealthRequests = urlHealthRequests;
 
 export async function fetchPublicHtml(
   url: string,
@@ -42,6 +52,59 @@ export async function fetchPublicHtml(
   } finally {
     if (htmlRequests.get(url) === request) htmlRequests.delete(url);
   }
+}
+
+export async function publicUrlExists(
+  url: string,
+  timeoutMs = 4_000,
+  maxAgeMs = 10 * 60 * 1000,
+) {
+  const cached = urlHealthCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.available;
+
+  const activeRequest = urlHealthRequests.get(url);
+  if (activeRequest) return activeRequest;
+
+  const request = fetch(url, {
+    method: "HEAD",
+    headers: HTML_HEADERS,
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .then((available) => {
+      urlHealthCache.set(url, {
+        expiresAt: Date.now() + maxAgeMs,
+        available,
+      });
+      return available;
+    });
+  urlHealthRequests.set(url, request);
+  try {
+    return await request;
+  } finally {
+    if (urlHealthRequests.get(url) === request) {
+      urlHealthRequests.delete(url);
+    }
+  }
+}
+
+export async function filterAvailableListings<T extends { url: string }>(
+  listings: T[],
+  concurrency = 4,
+) {
+  const availableListings: T[] = [];
+  for (let index = 0; index < listings.length; index += concurrency) {
+    const group = listings.slice(index, index + concurrency);
+    const availability = await Promise.all(
+      group.map((listing) => publicUrlExists(listing.url)),
+    );
+    availableListings.push(
+      ...group.filter((_, groupIndex) => availability[groupIndex]),
+    );
+  }
+  return availableListings;
 }
 
 export function jsonLdFromHtml(html: string) {

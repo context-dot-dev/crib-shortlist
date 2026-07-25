@@ -41,39 +41,35 @@ export async function discoverRentSfNowListings(preferences: Preferences) {
   const cached = rentSfNowCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  try {
-    const html = await fetchPublicHtml(INVENTORY_URL, 6_000);
-    const candidates = extractRentSfNowCandidates(html)
-      .filter(
-        (candidate) =>
-          candidate.price >= preferences.budgetMin &&
-          candidate.price <= preferences.budgetMax &&
-          matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
-      )
-      .slice(0, 6);
-    const apartments = (
-      await Promise.all(
-        candidates.map((candidate) =>
-          enrichRentSfNowCandidate(candidate, preferences),
-        ),
-      )
-    ).filter((apartment): apartment is ApartmentCard => apartment !== null);
-    if (apartments.length > 0) {
-      rentSfNowCache.set(cacheKey, {
-        expiresAt: Date.now() + 3 * 60 * 1000,
-        apartments,
-      });
-    }
-    return apartments;
-  } catch {
-    return [];
+  const html = await fetchPublicHtml(INVENTORY_URL, 10_000);
+  const candidates = extractRentSfNowCandidates(html)
+    .filter(
+      (candidate) =>
+        candidate.price >= preferences.budgetMin &&
+        candidate.price <= preferences.budgetMax &&
+        matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
+    )
+    .slice(0, 6);
+  const apartments = (
+    await Promise.all(
+      candidates.map((candidate) =>
+        enrichRentSfNowCandidate(candidate, preferences),
+      ),
+    )
+  ).filter((apartment): apartment is ApartmentCard => apartment !== null);
+  if (apartments.length > 0) {
+    rentSfNowCache.set(cacheKey, {
+      expiresAt: Date.now() + 3 * 60 * 1000,
+      apartments,
+    });
   }
+  return apartments;
 }
 
 export function extractRentSfNowCandidates(html: string) {
   return [
     ...html.matchAll(
-      /<a href="([^"]+)" class="apartment-image"[^>]*>[\s\S]*?background-image:url\(['"]?([^'")]+)['"]?\)[^>]*>[\s\S]*?<h5>([\s\S]*?)<\/h5>\s*<h4>([\s\S]*?)<\/h4>\s*<p>([\s\S]*?)<\/p>/gi,
+      /<a href="([^"]+)" class="apartment-image"[^>]*>[\s\S]*?background-image:url\(['"]([^'"]+)['"]\)[^>]*>[\s\S]*?<h5>([\s\S]*?)<\/h5>\s*<h4>([\s\S]*?)<\/h4>\s*<p>([\s\S]*?)<\/p>/gi,
     ),
   ].flatMap((match): RentSfNowCandidate[] => {
     const details = decodeHtml(match[5]).replace(/<[^>]+>/g, " ");

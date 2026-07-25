@@ -55,6 +55,7 @@ export async function searchApartments(
           hit: true,
           ageMs: cached.ageMs,
         },
+        sourceErrors: {},
       },
     };
   }
@@ -115,6 +116,13 @@ export async function searchApartments(
         hit: useCachedFallback,
         ageMs: cached.ageMs,
       },
+      sourceErrors: Object.fromEntries(
+        measurements.flatMap((measurement) =>
+          measurement.error
+            ? [[measurement.sourceId, measurement.error]]
+            : [],
+        ),
+      ),
     },
   };
 }
@@ -168,11 +176,33 @@ async function discoverSources(
   apiKey: string,
 ) {
   return Promise.all(
-    sources.map(async (sourceId) => ({
-      sourceId,
-      ...(await measure(() => runSource(sourceId, preferences, apiKey))),
-    })),
+    sources.map((sourceId) =>
+      measureSource(sourceId, preferences, apiKey),
+    ),
   );
+}
+
+async function measureSource(
+  sourceId: SourceId,
+  preferences: Preferences,
+  apiKey: string,
+) {
+  const startedAt = Date.now();
+  try {
+    return {
+      sourceId,
+      value: await runSource(sourceId, preferences, apiKey),
+      durationMs: Date.now() - startedAt,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      sourceId,
+      value: [] as ApartmentCard[],
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function safeReadCache(

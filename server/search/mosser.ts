@@ -1,3 +1,4 @@
+import { filterAvailableListings } from "./html";
 import {
   cleanImageUrls,
   createApartmentCard,
@@ -63,26 +64,25 @@ export async function discoverMosserListings(preferences: Preferences) {
   const cached = deckCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  try {
-    const candidates = await getCandidates(preferences);
-    const apartments = candidates
-      .filter(
-        (candidate) =>
-          candidate.price >= preferences.budgetMin &&
-          candidate.price <= preferences.budgetMax,
-      )
-      .slice(0, 4)
-      .map((candidate) => createCard(candidate, preferences));
-    if (apartments.length > 0) {
-      deckCache.set(cacheKey, {
-        expiresAt: Date.now() + 10 * 60 * 1000,
-        apartments,
-      });
-    }
-    return apartments;
-  } catch {
-    return [];
+  const candidates = await getCandidates(preferences);
+  const candidatesInBudget = candidates
+    .filter(
+      (candidate) =>
+        candidate.price >= preferences.budgetMin &&
+        candidate.price <= preferences.budgetMax,
+    )
+    .slice(0, 8);
+  const liveCandidates = await filterAvailableListings(candidatesInBudget);
+  const apartments = liveCandidates
+    .slice(0, 4)
+    .map((candidate) => createCard(candidate, preferences));
+  if (apartments.length > 0) {
+    deckCache.set(cacheKey, {
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      apartments,
+    });
   }
+  return apartments;
 }
 
 async function getCandidates(preferences: Preferences) {

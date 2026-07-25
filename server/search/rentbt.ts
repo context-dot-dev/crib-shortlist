@@ -1,3 +1,4 @@
+import { filterAvailableListings } from "./html";
 import { createApartmentCard, matchesBedrooms } from "./ranking";
 import type { ApartmentCard, Preferences } from "./schemas";
 
@@ -40,6 +41,7 @@ type RentBtHit = {
 
 export async function discoverRentBtListings(preferences: Preferences) {
   const cacheKey = JSON.stringify({
+    version: 2,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     bedrooms: preferences.bedrooms,
@@ -47,43 +49,40 @@ export async function discoverRentBtListings(preferences: Preferences) {
   const cached = rentBtCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  try {
-    const response = await fetch(ALGOLIA_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-algolia-application-id": ALGOLIA_APP_ID,
-        "x-algolia-api-key": ALGOLIA_SEARCH_KEY,
-      },
-      body: JSON.stringify({
-        query: "san francisco",
-        hitsPerPage: 30,
-        filters: [
-          "unitAvailable:true",
-          bedroomFilter(preferences.bedrooms),
-          `unitPrice >= ${preferences.budgetMin}`,
-          `unitPrice <= ${preferences.budgetMax}`,
-        ].join(" AND "),
-      }),
-      signal: AbortSignal.timeout(5_000),
+  const response = await fetch(ALGOLIA_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-algolia-application-id": ALGOLIA_APP_ID,
+      "x-algolia-api-key": ALGOLIA_SEARCH_KEY,
+    },
+    body: JSON.stringify({
+      query: "san francisco",
+      hitsPerPage: 30,
+      filters: [
+        "unitAvailable:true",
+        bedroomFilter(preferences.bedrooms),
+        `unitPrice >= ${preferences.budgetMin}`,
+        `unitPrice <= ${preferences.budgetMax}`,
+      ].join(" AND "),
+    }),
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) throw new Error(`Brick + Timber returned ${response.status}.`);
+  const result = (await response.json()) as { hits?: unknown };
+  const discoveredApartments = Array.isArray(result.hits)
+    ? result.hits.flatMap((hit) =>
+        rentBtCardFromHit(hit as RentBtHit, preferences),
+      )
+    : [];
+  const apartments = await filterAvailableListings(discoveredApartments);
+  if (apartments.length > 0) {
+    rentBtCache.set(cacheKey, {
+      expiresAt: Date.now() + 2 * 60 * 1000,
+      apartments,
     });
-    if (!response.ok) throw new Error(`Brick + Timber returned ${response.status}.`);
-    const result = (await response.json()) as { hits?: unknown };
-    const apartments = Array.isArray(result.hits)
-      ? result.hits.flatMap((hit) =>
-          rentBtCardFromHit(hit as RentBtHit, preferences),
-        )
-      : [];
-    if (apartments.length > 0) {
-      rentBtCache.set(cacheKey, {
-        expiresAt: Date.now() + 2 * 60 * 1000,
-        apartments,
-      });
-    }
-    return apartments;
-  } catch {
-    return [];
   }
+  return apartments;
 }
 
 export function rentBtCardFromHit(

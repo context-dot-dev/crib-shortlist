@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectPreferredBrandLogo } from "../server/brand/providers";
 import {
+  buildSearchUrl,
   cardFromSnapshot,
   extractCraigslistSearchCandidates,
   snapshotFromHtml,
 } from "../server/search/craigslist";
-import { fetchPublicHtml } from "../server/search/html";
+import {
+  filterAvailableListings,
+  fetchPublicHtml,
+  publicUrlExists,
+} from "../server/search/html";
 import { jwavroCardFromHtml } from "../server/search/jwavro";
 import {
   dedupeApartments,
@@ -78,6 +83,21 @@ test("parses current Craigslist search result markup", () => {
   ]);
 });
 
+test("uses exact Craigslist bedroom filters", () => {
+  const studioUrl = new URL(
+    buildSearchUrl({ ...preferences, bedrooms: "studio" }),
+  );
+  const twoBedUrl = new URL(
+    buildSearchUrl({ ...preferences, bedrooms: "2" }),
+  );
+
+  assert.equal(studioUrl.searchParams.get("min_bedrooms"), "0");
+  assert.equal(studioUrl.searchParams.get("max_bedrooms"), "0");
+  assert.equal(twoBedUrl.searchParams.get("min_bedrooms"), "2");
+  assert.equal(twoBedUrl.searchParams.get("max_bedrooms"), "2");
+  assert.equal(studioUrl.searchParams.has("hub"), false);
+});
+
 test("accepts Craigslist House JSON-LD and builds a complete card", () => {
   const url =
     "https://www.craigslist.org/view/d/san-francisco-sunny-one/abc123";
@@ -131,10 +151,38 @@ test("accepts Craigslist House JSON-LD and builds a complete card", () => {
   assert.equal(card.images.length, 1);
 });
 
+test("rejects a Craigslist detail page with the wrong bedroom count", () => {
+  const card = cardFromSnapshot(
+    snapshotFromHtml(
+      "https://www.craigslist.org/view/d/example/wrong-bedroom",
+      `
+        <title>$2,750 / 1br - Wrong bedroom count</title>
+        <link rel="canonical" href="https://www.craigslist.org/view/d/example/wrong-bedroom">
+        <script type="application/ld+json">
+          {
+            "@type": "Apartment",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "123 Valencia Street",
+              "addressLocality": "San Francisco",
+              "addressRegion": "CA"
+            }
+          }
+        </script>
+        <h1 class="postingtitle">$2,750 / 1br - Wrong bedroom count</h1>
+        <img src="https://images.craigslist.org/example_600x450.jpg">
+      `,
+    ),
+    { ...preferences, bedrooms: "2" },
+  );
+
+  assert.equal(card, null);
+});
+
 test("parses RentSFNow featured inventory cards", () => {
   const candidates = extractRentSfNowCandidates(`
     <a href="/apartments/rental/655-powell-5" class="apartment-image">
-      <div class="veritasCarouselImage" style="background-image:url('https://cdn.rentcafe.com/unit.jpg');"></div>
+      <div class="veritasCarouselImage" style="background-image:url('https://cdn.rentcafe.com/unit(1).jpg');"></div>
       <h5>Nob Hill</h5>
       <h4>655 Powell #5</h4>
       <p>1 Bed \\\\ 1 Bath \\\\ &#36;3,495</p>
@@ -146,6 +194,7 @@ test("parses RentSFNow featured inventory cards", () => {
   assert.equal(candidates[0].bedrooms, 1);
   assert.equal(candidates[0].bathrooms, 1);
   assert.equal(candidates[0].neighborhood, "Nob Hill");
+  assert.equal(candidates[0].image, "https://cdn.rentcafe.com/unit(1).jpg");
 });
 
 test("maps available Brick + Timber hits without a detail scrape", () => {
@@ -379,6 +428,46 @@ test("coalesces concurrent requests for the same public page", async () => {
       "<html>listing</html>",
     ]);
     assert.equal(requests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects dead listing URLs before they enter the cache", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(null, { status: 404 });
+
+  try {
+    assert.equal(
+      await publicUrlExists("https://health-test.invalid/dead-listing"),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("keeps only reachable listings in their original order", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) =>
+    new Response(null, {
+      status: String(input).includes("dead") ? 404 : 200,
+    });
+
+  try {
+    const liveFirst = {
+      url: "https://health-filter.invalid/live-first",
+    };
+    const dead = {
+      url: "https://health-filter.invalid/dead",
+    };
+    const liveSecond = {
+      url: "https://health-filter.invalid/live-second",
+    };
+    assert.deepEqual(
+      await filterAvailableListings([liveFirst, dead, liveSecond], 2),
+      [liveFirst, liveSecond],
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

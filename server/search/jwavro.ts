@@ -46,35 +46,31 @@ export async function discoverJwavroListings(
   const cached = deckCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  try {
-    const candidates = (await getCandidates(apiKey))
-      .filter(
-        (candidate) =>
-          candidate.url &&
-          candidate.name &&
-          candidate.price !== null &&
-          candidate.price >= preferences.budgetMin &&
-          candidate.price <= preferences.budgetMax &&
-          matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
-      )
-      .slice(0, 8);
-    const apartments = (
-      await Promise.all(
-        candidates.map((candidate) =>
-          fetchJwavroCard(candidate, preferences),
-        ),
-      )
-    ).filter((apartment): apartment is ApartmentCard => apartment !== null);
-    if (apartments.length > 0) {
-      deckCache.set(cacheKey, {
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        apartments,
-      });
-    }
-    return apartments;
-  } catch {
-    return [];
+  const candidates = (await getCandidates(apiKey))
+    .filter(
+      (candidate) =>
+        candidate.url &&
+        candidate.name &&
+        candidate.price !== null &&
+        candidate.price >= preferences.budgetMin &&
+        candidate.price <= preferences.budgetMax &&
+        matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
+    )
+    .slice(0, 8);
+  const apartments = (
+    await Promise.all(
+      candidates.map((candidate) =>
+        fetchJwavroCard(candidate, preferences),
+      ),
+    )
+  ).filter((apartment): apartment is ApartmentCard => apartment !== null);
+  if (apartments.length > 0) {
+    deckCache.set(cacheKey, {
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      apartments,
+    });
   }
+  return apartments;
 }
 
 async function getCandidates(apiKey: string) {
