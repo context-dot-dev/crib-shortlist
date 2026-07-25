@@ -54,6 +54,31 @@ type CraigslistCandidate = {
   location: string;
 };
 
+// Craigslist keeps removed postings online as HTTP 200 pages, so the only
+// reliable liveness signal is the removal notice. The four states are:
+// flagged by users, removed by craigslist, deleted by the author, expired.
+const REMOVED_POSTING_NOTICE =
+  /this posting has (?:been (?:flagged for removal|deleted|removed)|expired)/i;
+
+export function isRemovedCraigslistPosting(text: string) {
+  return REMOVED_POSTING_NOTICE.test(text);
+}
+
+export async function removedCraigslistListingUrls(
+  urls: string[],
+  apiKey: string,
+) {
+  const removalChecks = await mapWithConcurrency(urls, 5, async (url) => {
+    try {
+      const snapshot = await fetchListingSnapshot(url, apiKey);
+      return isRemovedCraigslistPosting(snapshot.markdown) ? url : null;
+    } catch {
+      return null;
+    }
+  });
+  return removalChecks.filter((url): url is string => url !== null);
+}
+
 export async function discoverCraigslistListings(
   preferences: Preferences,
   apiKey: string,
@@ -192,7 +217,7 @@ async function scrapeListing(
     const snapshot = await fetchListingSnapshot(url, apiKey);
     if (
       snapshot.contentLength < 1_000 ||
-      /this posting has been deleted/i.test(snapshot.markdown)
+      isRemovedCraigslistPosting(snapshot.markdown)
     ) {
       return null;
     }
@@ -209,9 +234,11 @@ async function fetchListingSnapshot(
   try {
     return snapshotFromHtml(url, await fetchPublicHtml(url, 5_000));
   } catch {
+    // Keep this window short: postings get flagged for removal within hours,
+    // and a stale copy would still show the pre-removal listing.
     const response = await requestContext(
       htmlPath(url, {
-        maxAgeMs: 12 * 60 * 60 * 1000,
+        maxAgeMs: 5 * 60 * 1000,
         waitForMs: 0,
         timeoutMs: 25_000,
       }),

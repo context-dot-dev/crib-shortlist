@@ -345,6 +345,21 @@ export async function pruneExpiredListings() {
   return result.rowsAffected;
 }
 
+export async function pruneRemovedListings(urls: string[]) {
+  const client = databaseClient();
+  if (!client || urls.length === 0) return 0;
+
+  await ensureSchema(client);
+  const result = await client.execute({
+    sql: `
+      DELETE FROM listing_cache_v2
+      WHERE url IN (${urls.map(() => "?").join(", ")})
+    `,
+    args: urls,
+  });
+  return result.rowsAffected;
+}
+
 async function readStableImages(
   client: ReturnType<typeof createClient>,
   urls: string[],

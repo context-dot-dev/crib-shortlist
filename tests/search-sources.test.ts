@@ -8,8 +8,11 @@ import {
   buildSearchUrl,
   cardFromSnapshot,
   extractCraigslistSearchCandidates,
+  isRemovedCraigslistPosting,
+  removedCraigslistListingUrls,
   snapshotFromHtml,
 } from "../server/search/craigslist";
+import { verifiedApartmentDeck } from "../server/search/service";
 import {
   filterAvailableListings,
   fetchPublicHtml,
@@ -290,6 +293,111 @@ test("rejects a Craigslist detail page with the wrong bedroom count", () => {
   );
 
   assert.equal(card, null);
+});
+
+test("detects every Craigslist posting removal state", () => {
+  const removalNotices = [
+    "This posting has been flagged for removal.",
+    "This posting has been deleted by its author.",
+    "This posting has been removed by craigslist.",
+    "This posting has expired.",
+  ];
+  for (const notice of removalNotices) {
+    const snapshot = snapshotFromHtml(
+      "https://www.craigslist.org/view/d/example/removed",
+      `
+        <html>
+          <head><title>$2,750 / 1br - Sunny one bedroom</title></head>
+          <body>
+            <div class="removed">
+              <h2>${notice}</h2>
+              <p>(The title on the listings page will be removed in just a few minutes.)</p>
+            </div>
+          </body>
+        </html>
+      `,
+    );
+    assert.equal(isRemovedCraigslistPosting(snapshot.markdown), true, notice);
+  }
+
+  const liveSnapshot = snapshotFromHtml(
+    "https://www.craigslist.org/view/d/example/live",
+    `
+      <html>
+        <head><title>$2,750 / 1br - Sunny one bedroom</title></head>
+        <body>
+          <h1 class="postingtitle">$2,750 / 1br - Sunny one bedroom</h1>
+          <section id="postingbody">Bright apartment near the park.</section>
+        </body>
+      </html>
+    `,
+  );
+  assert.equal(isRemovedCraigslistPosting(liveSnapshot.markdown), false);
+});
+
+test("reports which Craigslist listings now show a removal notice", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) =>
+    new Response(
+      String(input).includes("flagged")
+        ? `<html><body><div class="removed"><h2>This posting has been flagged for removal.</h2></div></body></html>`
+        : `<html><body><section id="postingbody">Still live.</section></body></html>`,
+      { status: 200 },
+    );
+
+  try {
+    assert.deepEqual(
+      await removedCraigslistListingUrls(
+        [
+          "https://removal-check.invalid/flagged-post",
+          "https://removal-check.invalid/live-post",
+        ],
+        "test-key",
+      ),
+      ["https://removal-check.invalid/flagged-post"],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("drops flagged Craigslist cards from cached Apartment Decks", async () => {
+  const flagged = apartmentCard({
+    name: "Flagged craigslist one bedroom",
+    url: "https://deck-verify.invalid/flagged-post",
+    provider: "craigslist.org",
+    address: "100 Valencia Street, San Francisco, CA",
+  });
+  const live = apartmentCard({
+    name: "Live craigslist one bedroom",
+    url: "https://deck-verify.invalid/live-post",
+    provider: "craigslist.org",
+    address: "200 Guerrero Street, San Francisco, CA",
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) =>
+    new Response(
+      String(input).includes("flagged")
+        ? `<html><body><div class="removed"><h2>This posting has been flagged for removal.</h2></div></body></html>`
+        : `<html><body><section id="postingbody">Still live.</section></body></html>`,
+      { status: 200 },
+    );
+
+  try {
+    const verified = await verifiedApartmentDeck(
+      [flagged, live],
+      preferences,
+      [],
+      "test-key",
+    );
+    assert.deepEqual(
+      verified.deck.apartments.map((apartment) => apartment.url),
+      [live.url],
+    );
+    assert.deepEqual(verified.removedUrls, [flagged.url]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("parses RentSFNow featured inventory cards", () => {

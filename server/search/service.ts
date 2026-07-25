@@ -1,4 +1,5 @@
 import {
+  pruneRemovedListings,
   readListingCache,
   storeSearchListings,
 } from "../cache/listings";
@@ -6,6 +7,7 @@ import {
   buildApartmentDeck,
   mergeApartmentInventory,
 } from "./apartment-deck";
+import { removedCraigslistListingUrls } from "./craigslist";
 import type {
   ApartmentCard,
   Preferences,
@@ -28,36 +30,50 @@ export async function searchApartments(
   const startedAt = Date.now();
   const sources = selectedSources(source);
   const cached = await safeReadCache(preferences, sources);
-  const cachedDeck = buildApartmentDeck(cached.apartments, preferences, {
-    excludedUrls,
-  });
+  const knownRemovedUrls: string[] = [];
+
   if (cached.coverageFresh) {
-    return {
-      apartments: cachedDeck.apartments,
-      analyzed: cachedDeck.analyzed,
-      timings: {
-        discoveryMs: Date.now() - startedAt,
-        totalMs: Date.now() - startedAt,
-        sources: Object.fromEntries(
-          sources.map((sourceId) => [sourceId, 0]),
-        ),
-      },
-      diagnostics: {
-        source: "turso-listing-cache",
-        requestedLane: source,
-        extracted: cachedDeck.analyzed,
-        discoveredSources: cachedDeck.discoveredSources,
-        deckSources: cachedDeck.deckSources,
-        qualityMatched: cachedDeck.qualityMatches,
-        coreMatched: cachedDeck.coreMatches,
-        relaxed: cachedDeck.relaxed,
-        cache: {
-          hit: true,
-          ageMs: cached.ageMs,
+    const verified = await verifiedApartmentDeck(
+      cached.apartments,
+      preferences,
+      excludedUrls,
+      apiKey,
+    );
+    knownRemovedUrls.push(...verified.removedUrls);
+    await pruneRemovedListings(verified.removedUrls).catch(() => 0);
+    // Only skip live discovery when the verified deck still has cards to
+    // show; a deck emptied by removed postings needs a fresh acquisition.
+    if (
+      verified.deck.apartments.length > 0 ||
+      verified.removedUrls.length === 0
+    ) {
+      return {
+        apartments: verified.deck.apartments,
+        analyzed: verified.deck.analyzed,
+        timings: {
+          discoveryMs: Date.now() - startedAt,
+          totalMs: Date.now() - startedAt,
+          sources: Object.fromEntries(
+            sources.map((sourceId) => [sourceId, 0]),
+          ),
         },
-        sourceErrors: {},
-      },
-    };
+        diagnostics: {
+          source: "turso-listing-cache",
+          requestedLane: source,
+          extracted: verified.deck.analyzed,
+          discoveredSources: verified.deck.discoveredSources,
+          deckSources: verified.deck.deckSources,
+          qualityMatched: verified.deck.qualityMatches,
+          coreMatched: verified.deck.coreMatches,
+          relaxed: verified.deck.relaxed,
+          cache: {
+            hit: true,
+            ageMs: cached.ageMs,
+          },
+          sourceErrors: {},
+        },
+      };
+    }
   }
 
   const measurements = await discoverSources(sources, preferences, apiKey);
@@ -65,7 +81,7 @@ export async function searchApartments(
   const liveDeck = buildApartmentDeck(
     measurements.flatMap((measurement) => measurement.value),
     preferences,
-    { excludedUrls },
+    { excludedUrls: [...excludedUrls, ...knownRemovedUrls] },
   );
   await storeSearchListings(
     measurements.map((measurement) => ({
@@ -74,9 +90,22 @@ export async function searchApartments(
     })),
     preferences.bedrooms,
   ).catch(() => false);
-  const useCachedFallback =
-    liveDeck.apartments.length === 0 && cachedDeck.apartments.length > 0;
-  const selectedDeck = useCachedFallback ? cachedDeck : liveDeck;
+
+  let selectedDeck = liveDeck;
+  let useCachedFallback = false;
+  if (liveDeck.apartments.length === 0 && cached.apartments.length > 0) {
+    const fallback = await verifiedApartmentDeck(
+      cached.apartments,
+      preferences,
+      [...excludedUrls, ...knownRemovedUrls],
+      apiKey,
+    );
+    await pruneRemovedListings(fallback.removedUrls).catch(() => 0);
+    if (fallback.deck.apartments.length > 0) {
+      selectedDeck = fallback.deck;
+      useCachedFallback = true;
+    }
+  }
 
   return {
     apartments: selectedDeck.apartments,
@@ -198,6 +227,68 @@ async function measureSource(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+const DECK_VERIFICATION_ROUNDS = 4;
+
+/**
+ * Builds an Apartment Deck from Listing Inventory, but confirms every
+ * Craigslist card in the deck still points to a live posting. Craigslist
+ * serves flagged/deleted/expired postings as normal HTTP 200 pages, so
+ * cached cards must be re-checked against the posting body before renters
+ * see them. Removed cards are excluded and the deck is rebuilt so other
+ * inventory can fill the gap.
+ */
+export async function verifiedApartmentDeck(
+  apartments: ApartmentCard[],
+  preferences: Preferences,
+  excludedUrls: string[],
+  apiKey: string,
+) {
+  const exclusions = new Set(excludedUrls);
+  const liveUrls = new Set<string>();
+  const removedUrls: string[] = [];
+
+  for (let round = 0; round < DECK_VERIFICATION_ROUNDS; round += 1) {
+    const deck = buildApartmentDeck(apartments, preferences, {
+      excludedUrls: [...exclusions],
+    });
+    const unverifiedUrls = deck.apartments
+      .filter(
+        (apartment) =>
+          apartment.provider === "craigslist.org" &&
+          !liveUrls.has(apartment.url),
+      )
+      .map((apartment) => apartment.url);
+    if (unverifiedUrls.length === 0) return { deck, removedUrls };
+
+    const removed = new Set(
+      await removedCraigslistListingUrls(unverifiedUrls, apiKey),
+    );
+    for (const url of unverifiedUrls) {
+      if (removed.has(url)) {
+        exclusions.add(url);
+        removedUrls.push(url);
+      } else {
+        liveUrls.add(url);
+      }
+    }
+    if (removed.size === 0) return { deck, removedUrls };
+  }
+
+  // Verification budget exhausted while removals keep surfacing: only offer
+  // Craigslist cards that were confirmed live.
+  const provenApartments = apartments.filter(
+    (apartment) =>
+      apartment.provider !== "craigslist.org" ||
+      liveUrls.has(apartment.url),
+  );
+  return {
+    deck: buildApartmentDeck(provenApartments, preferences, {
+      excludedUrls: [...exclusions],
+    }),
+    removedUrls,
+  };
 }
 
 async function safeReadCache(
