@@ -10,10 +10,13 @@ import {
   type ApartmentCard,
   type Preferences,
 } from "../search/schemas";
+import { requestContext } from "../search/context-client";
+import { isRecord, mapWithConcurrency } from "../search/html";
 import type { SourceId } from "../search/sources";
 
-const COVERAGE_MAX_AGE_MS = 45 * 60 * 1000;
-const LISTING_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const COVERAGE_MAX_AGE_MS = 25 * 60 * 60 * 1000;
+const LISTING_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+const MEDIA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CACHED_CANDIDATES = 300;
 
 const globalDatabase = globalThis as typeof globalThis & {
@@ -194,6 +197,85 @@ export function listingCacheConfigured() {
   return databaseClient() !== null;
 }
 
+export async function stabilizeCraigslistImages(
+  apartments: ApartmentCard[],
+  apiKey: string,
+) {
+  const client = databaseClient();
+  if (!client) {
+    throw new Error("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required.");
+  }
+
+  const craigslistApartments = apartments.filter(
+    (apartment) => apartment.provider === "craigslist.org",
+  );
+  if (craigslistApartments.length === 0) return apartments;
+
+  await ensureSchema(client);
+  const cachedImages = await readStableImages(
+    client,
+    craigslistApartments.map((apartment) => apartment.url),
+  );
+  const uncachedApartments = craigslistApartments.filter(
+    (apartment) => !cachedImages.has(apartment.url),
+  );
+  const freshImages = await mapWithConcurrency(
+    uncachedApartments,
+    5,
+    async (apartment) => ({
+      url: apartment.url,
+      images: await fetchHostedImages(apartment.images[0] ?? "", apiKey),
+    }),
+  );
+  const successfulImages = freshImages.filter(
+    (entry) => entry.images.length > 0,
+  );
+  if (successfulImages.length > 0) {
+    await client.batch(
+      successfulImages.map((entry) => stableImagesUpsert(entry)),
+      "write",
+    );
+  }
+
+  const stableImages = new Map([
+    ...cachedImages,
+    ...successfulImages.map(
+      (entry) => [entry.url, entry.images] as const,
+    ),
+  ]);
+  return apartments.flatMap((apartment) => {
+    if (apartment.provider !== "craigslist.org") return [apartment];
+    const images = stableImages.get(apartment.url);
+    return images ? [{ ...apartment, images }] : [];
+  });
+}
+
+export function extractHostedImageUrls(response: unknown) {
+  if (!isRecord(response) || !Array.isArray(response.images)) return [];
+  return [
+    ...new Set(
+      response.images.flatMap((image) => {
+        if (!isRecord(image) || !isRecord(image.enrichment)) return [];
+        const { url, width, height } = image.enrichment;
+        if (
+          typeof url !== "string" ||
+          typeof width !== "number" ||
+          typeof height !== "number" ||
+          width < 320 ||
+          height < 240
+        ) {
+          return [];
+        }
+        try {
+          return new URL(url).hostname === "media.brand.dev" ? [url] : [];
+        } catch {
+          return [];
+        }
+      }),
+    ),
+  ].slice(0, 10);
+}
+
 function databaseClient() {
   const url = process.env.TURSO_DATABASE_URL?.trim();
   const authToken = process.env.TURSO_AUTH_TOKEN?.trim();
@@ -252,6 +334,13 @@ function ensureSchema(client: ReturnType<typeof createClient>) {
             PRIMARY KEY (source_id, bedroom_key)
           )
         `,
+        `
+          CREATE TABLE IF NOT EXISTS listing_media_v1 (
+            url TEXT PRIMARY KEY,
+            images TEXT NOT NULL,
+            refreshed_at INTEGER NOT NULL
+          )
+        `,
       ],
       "write",
     )
@@ -269,6 +358,76 @@ export async function pruneExpiredListings() {
     args: [Date.now() - LISTING_MAX_AGE_MS],
   });
   return result.rowsAffected;
+}
+
+async function readStableImages(
+  client: ReturnType<typeof createClient>,
+  urls: string[],
+) {
+  if (urls.length === 0) return new Map<string, string[]>();
+  const result = await client.execute({
+    sql: `
+      SELECT url, images
+      FROM listing_media_v1
+      WHERE url IN (${urls.map(() => "?").join(", ")})
+        AND refreshed_at >= ?
+    `,
+    args: [...urls, Date.now() - MEDIA_MAX_AGE_MS],
+  });
+  return new Map(
+    result.rows.flatMap((row) => {
+      try {
+        const images = JSON.parse(String(row.images));
+        return Array.isArray(images) &&
+          images.every((image) => typeof image === "string")
+          ? [[String(row.url), images] as const]
+          : [];
+      } catch {
+        return [];
+      }
+    }),
+  );
+}
+
+async function fetchHostedImages(sourceImageUrl: string, apiKey: string) {
+  if (!sourceImageUrl) return [];
+  try {
+    const params = new URLSearchParams({
+      url: sourceImageUrl,
+      dedupe: "true",
+      maxAgeMs: String(MEDIA_MAX_AGE_MS),
+      timeoutMs: "60000",
+    });
+    params.set("enrichment[hostedUrl]", "true");
+    params.set("enrichment[resolution]", "true");
+    const response = await requestContext(
+      `/web/scrape/images?${params.toString()}`,
+      apiKey,
+      { timeoutMs: 65_000 },
+    );
+    return extractHostedImageUrls(response);
+  } catch {
+    return [];
+  }
+}
+
+function stableImagesUpsert({
+  url,
+  images,
+}: {
+  url: string;
+  images: string[];
+}) {
+  return {
+    sql: `
+      INSERT INTO listing_media_v1 (url, images, refreshed_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(url) DO UPDATE SET
+        images = excluded.images,
+        refreshed_at = excluded.refreshed_at
+    `,
+    args: [url, JSON.stringify(images), Date.now()],
+  };
 }
 
 function listingUpsert(

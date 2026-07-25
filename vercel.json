@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/refresh-listings",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }

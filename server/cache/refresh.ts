@@ -1,5 +1,6 @@
 import {
   pruneExpiredListings,
+  stabilizeCraigslistImages,
   storeInventorySegment,
 } from "./listings";
 import {
@@ -23,16 +24,23 @@ export async function refreshListingInventory(apiKey: string) {
               preferences,
               apiKey,
             );
+            const apartments =
+              sourceId === "craigslist"
+                ? await stabilizeCraigslistImages(
+                    result.apartments,
+                    apiKey,
+                  )
+                : result.apartments;
             await storeInventorySegment({
               sourceId,
               bedrooms,
-              apartments: result.apartments,
+              apartments,
               durationMs: result.durationMs,
             });
             return {
               source: sourceId,
               bedrooms,
-              listings: result.apartments.length,
+              listings: apartments.length,
               durationMs: result.durationMs,
               error: null,
             };

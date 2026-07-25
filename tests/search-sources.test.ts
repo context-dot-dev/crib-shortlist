@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { POST as apartmentSearchPost } from "../app/api/apartment-search/route";
 import { selectPreferredBrandLogo } from "../server/brand/providers";
+import { extractHostedImageUrls } from "../server/cache/listings";
 import {
   buildSearchUrl,
   cardFromSnapshot,
@@ -80,6 +81,36 @@ test("prefers a square brand icon over a larger wordmark", () => {
   ]);
 
   assert.equal(selected, "https://media.brand.dev/rentsfnow-icon.png");
+});
+
+test("keeps only card-sized Context-hosted listing images", () => {
+  const images = extractHostedImageUrls({
+    images: [
+      {
+        enrichment: {
+          url: "https://media.brand.dev/full.jpg",
+          width: 600,
+          height: 399,
+        },
+      },
+      {
+        enrichment: {
+          url: "https://media.brand.dev/thumb.jpg",
+          width: 50,
+          height: 50,
+        },
+      },
+      {
+        enrichment: {
+          url: "https://untrusted.example.com/full.jpg",
+          width: 1200,
+          height: 800,
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(images, ["https://media.brand.dev/full.jpg"]);
 });
 
 test("parses current Craigslist search result markup", () => {

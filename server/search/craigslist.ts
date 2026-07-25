@@ -82,7 +82,7 @@ export async function discoverCraigslistListings(
     .slice(0, 24)
     .map((candidate) => candidate.url);
   const cards = await mapWithConcurrency(urls, 5, (url) =>
-    scrapeListing(url, preferences),
+    scrapeListing(url, preferences, apiKey),
   );
   const apartments = cards.filter(
     (card): card is ApartmentCard => card !== null,
@@ -184,9 +184,10 @@ export function extractCraigslistSearchCandidates(html: string) {
 async function scrapeListing(
   url: string,
   preferences: Preferences,
+  apiKey: string,
 ) {
   try {
-    const snapshot = await fetchListingSnapshot(url);
+    const snapshot = await fetchListingSnapshot(url, apiKey);
     if (
       snapshot.contentLength < 1_000 ||
       /this posting has been deleted/i.test(snapshot.markdown)
@@ -201,8 +202,23 @@ async function scrapeListing(
 
 async function fetchListingSnapshot(
   url: string,
+  apiKey: string,
 ): Promise<ListingSnapshot> {
-  return snapshotFromHtml(url, await fetchPublicHtml(url, 5_000));
+  try {
+    return snapshotFromHtml(url, await fetchPublicHtml(url, 5_000));
+  } catch {
+    const response = await requestContext(
+      htmlPath(url, {
+        maxAgeMs: 12 * 60 * 60 * 1000,
+        waitForMs: 0,
+        timeoutMs: 25_000,
+      }),
+      apiKey,
+      { timeoutMs: 28_000 },
+    );
+    const snapshot = HtmlResponseSchema.parse(response);
+    return snapshotFromHtml(url, snapshot.html);
+  }
 }
 
 export function snapshotFromHtml(
