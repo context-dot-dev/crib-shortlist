@@ -175,12 +175,18 @@ export async function storeInventorySegment({
 
   await ensureSchema(client);
   const refreshedAt = Date.now();
+  const listingStatements =
+    apartments.length > 0
+      ? [
+          segmentDelete(sourceId, bedrooms),
+          ...apartments.map((apartment) =>
+            listingUpsert(sourceId, bedrooms, apartment, refreshedAt),
+          ),
+        ]
+      : [];
   await client.batch(
     [
-      segmentDelete(sourceId, bedrooms),
-      ...apartments.map((apartment) =>
-        listingUpsert(sourceId, bedrooms, apartment, refreshedAt),
-      ),
+      ...listingStatements,
       segmentUpsert(
         sourceId,
         bedrooms,
