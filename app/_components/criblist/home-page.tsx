@@ -10,7 +10,6 @@ import {
   DEFAULT_PREFERENCES,
   PREFS_KEY,
   SAVED_KEY,
-  SEEN_KEY,
   SESSION_KEY,
   type ApartmentCard,
   type Decision,
@@ -27,6 +26,7 @@ export function HomePage() {
   const [history, setHistory] = useState<Decision[]>([]);
   const [saved, setSaved] = useState<ApartmentCard[]>([]);
   const [seenUrls, setSeenUrls] = useState<string[]>([]);
+  const [hasFoundResults, setHasFoundResults] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [detail, setDetail] = useState<ApartmentCard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +56,6 @@ export function HomePage() {
     try {
       const rawSaved = localStorage.getItem(SAVED_KEY);
       if (rawSaved) setSaved(JSON.parse(rawSaved) as ApartmentCard[]);
-      const rawSeen = localStorage.getItem(SEEN_KEY);
-      if (rawSeen) setSeenUrls(JSON.parse(rawSeen) as string[]);
       const rawPrefs = localStorage.getItem(PREFS_KEY);
       if (rawPrefs) {
         setPreferences(
@@ -69,10 +67,15 @@ export function HomePage() {
         const session = JSON.parse(rawSession) as {
           apartments: ApartmentCard[];
           currentIndex: number;
+          seenUrls?: string[];
         };
         if (Array.isArray(session.apartments) && session.apartments.length > 0) {
           setApartments(session.apartments);
           setCurrentIndex(Math.min(session.currentIndex ?? 0, session.apartments.length - 1));
+          setSeenUrls(
+            Array.isArray(session.seenUrls) ? session.seenUrls : [],
+          );
+          setHasFoundResults(true);
           setStage("deck");
         }
       }
@@ -95,15 +98,6 @@ export function HomePage() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(SEEN_KEY, JSON.stringify(seenUrls));
-    } catch {
-      /* storage may be unavailable */
-    }
-  }, [seenUrls, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(preferences));
     } catch {
       /* storage may be unavailable */
@@ -114,14 +108,17 @@ export function HomePage() {
     if (!hydrated) return;
     try {
       if (stage === "deck" && apartments.length > 0) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ apartments, currentIndex }));
+        localStorage.setItem(
+          SESSION_KEY,
+          JSON.stringify({ apartments, currentIndex, seenUrls }),
+        );
       } else {
         localStorage.removeItem(SESSION_KEY);
       }
     } catch {
       /* storage may be unavailable */
     }
-  }, [stage, apartments, currentIndex, hydrated]);
+  }, [stage, apartments, currentIndex, seenUrls, hydrated]);
 
   const isSaved = useCallback(
     (url: string) => saved.some((apartment) => apartment.url === url),
@@ -176,6 +173,7 @@ export function HomePage() {
         return;
       }
       setApartments(nextApartments);
+      setHasFoundResults(true);
       setStage("deck");
     } catch (searchError) {
       if (searchSequence.current !== sequence) return;
@@ -219,6 +217,8 @@ export function HomePage() {
     searchSequence.current += 1;
     setDetail(null);
     setSavedOpen(false);
+    setSeenUrls([]);
+    setHasFoundResults(false);
     setStage("setup");
   }, []);
 
@@ -264,7 +264,7 @@ export function HomePage() {
               <SearchComplete
                 key="done"
                 savedCount={saved.length}
-                hasResults={apartments.length > 0}
+                hasResults={hasFoundResults}
                 onEdit={editSearch}
                 onFindMore={() => void search()}
                 onViewSaved={() => setSavedOpen(true)}
