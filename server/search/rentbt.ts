@@ -1,6 +1,9 @@
 import { filterAvailableListings } from "./html";
-import { createApartmentCard, matchesBedrooms } from "./ranking";
-import type { ApartmentCard, Preferences } from "./schemas";
+import { createApartmentCard, matchesBedrooms } from "./listing-card";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../shared/search-contract";
 
 const ALGOLIA_APP_ID = "R132TNFQIJ";
 const ALGOLIA_SEARCH_KEY = "26692e052b7a312a8f25b8d158606ae1";

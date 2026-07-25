@@ -14,14 +14,16 @@ import {
   createApartmentCard,
   inferNeighborhood,
   matchesBedrooms,
-} from "./ranking";
+} from "./listing-card";
 import { ExtractListingsResponseSchema } from "./schemas";
 import type {
-  ApartmentCard,
   ContextListing,
   ExtractedApartment,
-  Preferences,
 } from "./schemas";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../shared/search-contract";
 
 export type ExtractedInventoryConfig = {
   id: string;
@@ -161,7 +163,10 @@ export function extractedCardFromHtml(
   }
 
   const laundry = inferLaundry(pageText);
-  const amenities = inferAmenities(pageText, laundry);
+  const amenities = [
+    ...structuredAmenityNames(listing?.amenityFeature),
+    ...inferAmenities(pageText, laundry),
+  ].filter((amenity, index, all) => all.indexOf(amenity) === index);
   const extracted: ExtractedApartment = {
     name,
     address,
@@ -310,6 +315,15 @@ function imageValues(value: unknown) {
   return Array.isArray(value)
     ? value.filter((image): image is string => typeof image === "string")
     : [];
+}
+
+function structuredAmenityNames(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((amenity) => {
+    if (!isRecord(amenity)) return [];
+    const name = stringValue(amenity.name);
+    return name ? [name] : [];
+  });
 }
 
 function imageUrlsFromHtml(html: string, pageUrl: string) {

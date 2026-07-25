@@ -1,15 +1,9 @@
 import { createClient } from "@libsql/client/web";
 import {
-  dedupeApartments,
-  excludeApartments,
-  prepareApartmentForPreferences,
-  rankApartments,
-} from "../search/ranking";
-import {
   ApartmentCardSchema,
   type ApartmentCard,
   type Preferences,
-} from "../search/schemas";
+} from "../../shared/search-contract";
 import { requestContext } from "../search/context-client";
 import { isRecord, mapWithConcurrency } from "../search/html";
 import type { SourceId } from "../search/sources";
@@ -30,10 +24,6 @@ type CachedSearch = {
   coverageFresh: boolean;
   ageMs: number | null;
   apartments: ApartmentCard[];
-  analyzed: number;
-  qualityMatches: number;
-  coreMatches: number;
-  relaxed: boolean;
 };
 
 type SourceListings = {
@@ -44,7 +34,6 @@ type SourceListings = {
 export async function readListingCache(
   preferences: Preferences,
   sourceIds: SourceId[],
-  excludedUrls: string[] = [],
 ): Promise<CachedSearch> {
   const client = databaseClient();
   if (!client) return emptyCachedSearch(false);
@@ -105,17 +94,11 @@ export async function readListingCache(
       const parsed = ApartmentCardSchema.safeParse(
         JSON.parse(String(row.payload)),
       );
-      return parsed.success
-        ? [prepareApartmentForPreferences(parsed.data, preferences)]
-        : [];
+      return parsed.success ? [parsed.data] : [];
     } catch {
       return [];
     }
   });
-  const eligibleCards = dedupeApartments(
-    excludeApartments(cards, excludedUrls),
-  );
-  const ranked = rankApartments(eligibleCards, preferences);
   const coveredSources = new Set(
     coverage.rows.map((row) => String(row.source_id)),
   );
@@ -130,11 +113,7 @@ export async function readListingCache(
       refreshTimes.length > 0
         ? now - Math.min(...refreshTimes)
         : null,
-    apartments: ranked.apartments,
-    analyzed: eligibleCards.length,
-    qualityMatches: ranked.qualityMatches,
-    coreMatches: ranked.coreMatches,
-    relaxed: ranked.relaxed,
+    apartments: cards,
   };
 }
 
@@ -531,9 +510,5 @@ function emptyCachedSearch(configured: boolean): CachedSearch {
     coverageFresh: false,
     ageMs: null,
     apartments: [],
-    analyzed: 0,
-    qualityMatches: 0,
-    coreMatches: 0,
-    relaxed: false,
   };
 }

@@ -1,40 +1,14 @@
-export type LaundryPreference = "any" | "in-unit" | "in-building";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../../shared/search-contract";
 
-export type Preferences = {
-  budgetMin: number;
-  budgetMax: number;
-  bedrooms: "studio" | "1" | "2" | "3+";
-  bathroomsMin: number;
-  neighborhoods: string[];
-  moveIn: "now" | "30 days" | "60 days" | "flexible";
-  laundry: LaundryPreference;
-  dishwasher: boolean;
-  pets: boolean;
-  minSquareFeet: number;
-};
+export type {
+  ApartmentCard,
+  Preferences,
+} from "../../../shared/search-contract";
 
-export type ApartmentCard = {
-  name: string;
-  url: string;
-  provider: string | null;
-  images: string[];
-  price: number | null;
-  bedrooms: number | null;
-  bathrooms: number | null;
-  neighborhood: string | null;
-  address: string | null;
-  squareFeet: number | null;
-  floorLevel: string | null;
-  availability: string | null;
-  description: string | null;
-  laundry: "in-unit" | "in-building" | "none" | "unknown";
-  dishwasher: boolean | null;
-  petsAllowed: boolean | null;
-  amenities: string[];
-  matchScore: number;
-  matchReasons: string[];
-  catches: string[];
-};
+export type LaundryPreference = Preferences["laundry"];
 
 export type Decision = {
   apartment: ApartmentCard;

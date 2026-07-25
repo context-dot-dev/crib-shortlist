@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import {
-  searchApartments,
-  type SearchSource,
-} from "../../../server/search/service";
-import { SearchRequestSchema } from "../../../server/search/schemas";
+import { searchApartments } from "../../../server/search/service";
+import { isSearchSource } from "../../../server/search/sources";
+import { SearchRequestSchema } from "../../../shared/search-contract";
 
 export const maxDuration = 300;
 
@@ -24,19 +22,19 @@ export async function POST(request: Request) {
       requestBody,
     );
     if (!parsedRequest.success) {
+      const budgetError = parsedRequest.error.issues.find(
+        (issue) => issue.message === "minimum rent cannot exceed maximum rent.",
+      );
       return NextResponse.json(
-        { error: "check the apartment filters and try again." },
+        {
+          error:
+            budgetError?.message ??
+            "check the apartment filters and try again.",
+        },
         { status: 400 },
       );
     }
     const { excludeUrls = [], ...preferences } = parsedRequest.data;
-    if (preferences.budgetMin > preferences.budgetMax) {
-      return NextResponse.json(
-        { error: "minimum rent cannot exceed maximum rent." },
-        { status: 400 },
-      );
-    }
-
     const apiKey = process.env.CONTEXT_DEV_API_KEY;
     if (!apiKey) {
       throw new Error("a context.dev key is required.");
@@ -49,14 +47,4 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-function isSearchSource(value: string | null): value is SearchSource {
-  return (
-    value === "all" ||
-    value === "fast" ||
-    value === "independent" ||
-    value === "craigslist" ||
-    value === "extract"
-  );
 }

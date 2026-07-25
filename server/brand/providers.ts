@@ -5,7 +5,7 @@ import {
 } from "../../shared/providers";
 import { requestContext } from "../search/context-client";
 
-const PROVIDER_CACHE_VERSION = 3;
+const PROVIDER_CACHE_VERSION = 4;
 
 const BrandResponseSchema = z
   .object({
@@ -107,21 +107,25 @@ async function retrieveProviderBrand(
         : null;
     const brand = fallbackBrand ?? primaryBrand;
     return {
+      sourceId: provider.sourceId,
       domain: provider.domain,
       label: provider.label,
       url: provider.url,
       title: brand.title?.trim() || provider.label,
       logoUrl: selectPreferredBrandLogo(brand.logos ?? []),
       color: preferredColor(brand.colors ?? []),
+      accent: provider.accent,
     };
   } catch {
     return {
+      sourceId: provider.sourceId,
       domain: provider.domain,
       label: provider.label,
       url: provider.url,
       title: provider.label,
       logoUrl: null,
       color: null,
+      accent: provider.accent,
     };
   }
 }

@@ -3,8 +3,11 @@ import {
   cleanImageUrls,
   createApartmentCard,
   matchesBedrooms,
-} from "./ranking";
-import type { ApartmentCard, Preferences } from "./schemas";
+} from "./listing-card";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../shared/search-contract";
 
 type Property = {
   property_post_link?: string;

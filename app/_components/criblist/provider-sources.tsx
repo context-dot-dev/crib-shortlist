@@ -9,19 +9,7 @@ import {
   type ProviderBrand,
 } from "../../../shared/providers";
 
-const SOURCE_ACCENTS: Record<string, string> = {
-  "craigslist.org": "#7d35a5",
-  "rentbt.com": "#b57d66",
-  "rentsfnow.com": "#d1492e",
-  "mosserliving.com": "#1796c7",
-  "jwavro.com": "#3d496b",
-  "rentalsinc.com": "#255b46",
-  "rentalsinsf.com": "#b43b32",
-  "landmarksf.com": "#9b6d35",
-  "relisto.com": "#c54831",
-};
-
-const PROVIDER_BRANDS_ENDPOINT = "/api/provider-brands?v=3";
+const PROVIDER_BRANDS_ENDPOINT = "/api/provider-brands?v=4";
 
 export function ProviderSources() {
   const [providers, setProviders] = useState(fallbackProviderBrands);
@@ -58,10 +46,7 @@ export function ProviderSources() {
     >
       <div className="group flex items-center">
         {providers.map((provider, index) => {
-          const accent =
-            provider.color ??
-            SOURCE_ACCENTS[provider.domain] ??
-            SOURCE_ACCENTS["jwavro.com"];
+          const accent = provider.color ?? provider.accent;
           return (
             <motion.a
               key={provider.domain}

@@ -9,12 +9,12 @@ import {
   metaContent,
   textFromHtml,
 } from "./html";
-import { inferNeighborhood, matchesBedrooms } from "./ranking";
+import { inferNeighborhood, matchesBedrooms } from "./listing-card";
+import type { ContextListing } from "./schemas";
 import type {
   ApartmentCard,
-  ContextListing,
   Preferences,
-} from "./schemas";
+} from "../../shared/search-contract";
 
 const INVENTORY_URL = "https://www.rentalsinsf.com/listings/";
 const CONFIG: ExtractedInventoryConfig = {

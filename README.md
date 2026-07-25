@@ -19,13 +19,13 @@ Context.dev powers the marketplace-discovery side of the search pipeline:
 
 1. The **HTML API** renders live Craigslist search results through automatic
    proxy escalation, preserving the exact listing links.
-2. The **Extract API** turns J. Wavro's live San Francisco inventory page into
+2. The **Extract API** turns four property-manager inventory pages into
    schema-validated listing candidates.
 3. The **Brand API** enriches the landing page with the identity of every
    provider in the live search network.
-4. Criblist verifies the detail pages and combines them with live Brick +
-   Timber, RentSFNow, and Mosser inventory.
-5. The shared pipeline normalizes, deduplicates, filters, and ranks all five
+4. Criblist verifies detail pages and combines them with four direct inventory
+   sources.
+5. The shared pipeline normalizes, deduplicates, filters, and ranks all nine
    providers into one consistent deck.
 
 The Context.dev API key stays server-side. Source adapters run concurrently,
@@ -88,20 +88,21 @@ app/
 └── api/cron/refresh-listings/ protected inventory refresh route
 
 server/search/
+├── apartment-deck.ts          filtering, scoring, diversity, and diagnostics
 ├── context-client.ts          Context.dev transport
-├── craigslist.ts              Craigslist discovery and parsing
-├── html.ts                    shared public-page parsing
-├── jwavro.ts                  Context Extract inventory adapter
-├── mosser.ts                  Structured Mosser inventory adapter
-├── rentbt.ts                  Brick + Timber live inventory adapter
-├── rentsfnow.ts               RentSFNow live inventory adapter
-├── ranking.ts                 filtering, scoring, and diversity
-├── schemas.ts                 request and response contracts
-└── service.ts                 search orchestration
+├── extracted-inventory.ts     shared Context Extract inventory adapter
+├── listing-card.ts            listing normalization and preference matching
+├── schemas.ts                 upstream source contracts
+├── sources.ts                 source acquisition network
+└── service.ts                 search and refresh orchestration
 
 server/cache/
 ├── listings.ts                Turso-backed listing inventory
 └── refresh.ts                 full source and bedroom refresh orchestration
+
+shared/
+├── providers.ts               source, lane, and provider catalog
+└── search-contract.ts         shared browser/server search contract
 ```
 
 The browser sends one validated preference object to three parallel lanes at
@@ -118,6 +119,10 @@ inventory is served first; live adapters refill missing or expired segments.
 - RentSFNow
 - Mosser Living
 - J. Wavro Associates
+- Rentals Inc.
+- Rentals in SF
+- Landmark Real Estate
+- ReLISTO
 
 Each adapter starts from the provider's current-availability page instead of a
 stale search index.

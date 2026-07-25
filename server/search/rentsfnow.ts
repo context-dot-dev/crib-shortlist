@@ -9,8 +9,11 @@ import {
   cleanImageUrls,
   createApartmentCard,
   matchesBedrooms,
-} from "./ranking";
-import type { ApartmentCard, Preferences } from "./schemas";
+} from "./listing-card";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../shared/search-contract";
 
 const INVENTORY_URL = "https://www.rentsfnow.com/";
 

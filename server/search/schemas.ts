@@ -1,24 +1,5 @@
 import * as z from "zod/v4";
 
-const LaundrySchema = z.enum(["any", "in-unit", "in-building"]);
-
-export const PreferencesSchema = z.object({
-  budgetMin: z.number().min(0).max(20000),
-  budgetMax: z.number().min(1000).max(20000),
-  bedrooms: z.enum(["studio", "1", "2", "3+"]),
-  bathroomsMin: z.number().min(1).max(4),
-  neighborhoods: z.array(z.string().min(1).max(80)).max(20),
-  moveIn: z.enum(["now", "30 days", "60 days", "flexible"]),
-  laundry: LaundrySchema,
-  dishwasher: z.boolean(),
-  pets: z.boolean(),
-  minSquareFeet: z.number().min(0).max(5000),
-});
-
-export const SearchRequestSchema = PreferencesSchema.extend({
-  excludeUrls: z.array(z.string().url()).max(200).optional(),
-});
-
 export const ListingSnapshotSchema = z.object({
   success: z.literal(true),
   markdown: z.string(),
@@ -63,32 +44,6 @@ export const ExtractListingsResponseSchema = z
   })
   .passthrough();
 
-export const ApartmentCardSchema = z.object({
-  name: z.string(),
-  url: z.string(),
-  provider: z.string().nullable(),
-  images: z.array(z.string()).max(12),
-  price: z.number().nullable(),
-  bedrooms: z.number().nullable(),
-  bathrooms: z.number().nullable(),
-  neighborhood: z.string().nullable(),
-  address: z.string().nullable(),
-  squareFeet: z.number().nullable(),
-  floorLevel: z.string().nullable(),
-  availability: z.string().nullable(),
-  description: z.string().nullable(),
-  laundry: z.enum(["in-unit", "in-building", "none", "unknown"]),
-  dishwasher: z.boolean().nullable(),
-  petsAllowed: z.boolean().nullable(),
-  amenities: z.array(z.string()).max(12),
-  matchScore: z.number().min(0).max(100),
-  matchReasons: z.array(z.string()).max(4),
-  catches: z.array(z.string()).max(4),
-  preferenceFit: z.boolean(),
-});
-
-export type Preferences = z.infer<typeof PreferencesSchema>;
-export type ApartmentCard = z.infer<typeof ApartmentCardSchema>;
 export type ListingSnapshot = z.infer<typeof ListingSnapshotSchema>;
 export type ContextListing = z.infer<typeof ContextListingSchema>;
 

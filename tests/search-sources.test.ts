@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { POST as apartmentSearchPost } from "../app/api/apartment-search/route";
+import { loadHuntStorage } from "../app/_components/criblist/storage";
 import { selectPreferredBrandLogo } from "../server/brand/providers";
 import { extractHostedImageUrls } from "../server/cache/listings";
 import {
@@ -15,26 +16,30 @@ import {
   publicUrlExists,
 } from "../server/search/html";
 import { extractedCardFromHtml } from "../server/search/extracted-inventory";
-import { jwavroCardFromHtml } from "../server/search/jwavro";
-import {
-  dedupeApartments,
-  excludeApartments,
-  formatAvailability,
-  prepareApartmentForPreferences,
-  rankApartments,
-} from "../server/search/ranking";
+import { buildApartmentDeck } from "../server/search/apartment-deck";
 import { rentBtCardFromHit } from "../server/search/rentbt";
 import {
   extractRentalsInSfUrls,
   rentalsInSfCardFromHtml,
 } from "../server/search/rentalsinsf";
 import { extractRentSfNowCandidates } from "../server/search/rentsfnow";
-import { selectedSources } from "../server/search/sources";
+import {
+  isSearchSource,
+  selectedSources,
+} from "../server/search/sources";
 import type {
   ApartmentCard,
-  ContextListing,
   Preferences,
-} from "../server/search/schemas";
+} from "../shared/search-contract";
+import {
+  ApartmentSearchResponseSchema,
+  PreferencesSchema,
+} from "../shared/search-contract";
+import {
+  LISTING_PROVIDERS,
+  SOURCE_IDS,
+} from "../shared/providers";
+import type { ContextListing } from "../server/search/schemas";
 
 const preferences: Preferences = {
   budgetMin: 1_800,
@@ -62,6 +67,62 @@ test("returns a client error for malformed search JSON", async () => {
   assert.deepEqual(await response.json(), {
     error: "check the apartment filters and try again.",
   });
+});
+
+test("keeps budget ordering in the shared Preferences contract", async () => {
+  assert.equal(
+    PreferencesSchema.safeParse({
+      ...preferences,
+      budgetMin: 4_000,
+      budgetMax: 3_000,
+    }).success,
+    false,
+  );
+
+  const response = await apartmentSearchPost(
+    new Request("http://localhost/api/apartment-search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...preferences,
+        budgetMin: 4_000,
+        budgetMax: 3_000,
+      }),
+    }),
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    error: "minimum rent cannot exceed maximum rent.",
+  });
+});
+
+test("decodes browser storage keys independently", () => {
+  const values = new Map<string, string>([
+    ["criblist.saved.v1", "not-json"],
+    ["criblist.prefs.v1", JSON.stringify({ bedrooms: "2" })],
+  ]);
+  const restored = loadHuntStorage({
+    getItem: (key) => values.get(key) ?? null,
+  });
+
+  assert.deepEqual(restored.saved, []);
+  assert.equal(restored.preferences.bedrooms, "2");
+  assert.equal(restored.preferences.budgetMin, 1_800);
+  assert.equal(restored.session, null);
+});
+
+test("rejects malformed Apartment Cards at the browser response seam", () => {
+  const malformed = {
+    ...apartmentCard(),
+    matchScore: "100",
+  };
+  assert.equal(
+    ApartmentSearchResponseSchema.safeParse({
+      apartments: [malformed],
+    }).success,
+    false,
+  );
 });
 
 test("prefers a square brand icon over a larger wordmark", () => {
@@ -307,6 +368,9 @@ test("uses J. Wavro detail JSON-LD to enrich Extract candidates", () => {
         },
         "numberOfBedrooms": 1,
         "numberOfBathroomsTotal": 1,
+        "amenityFeature": [
+          { "@type": "LocationFeatureSpecification", "name": "Roof deck" }
+        ],
         "image": ["https://static.letsrent.com/apartment.png"],
         "offers": {
           "@type": "Offer",
@@ -316,10 +380,17 @@ test("uses J. Wavro detail JSON-LD to enrich Extract candidates", () => {
       }
     </script>
   `;
-  const card = jwavroCardFromHtml(
-    candidate.url!,
-    html,
+  const card = extractedCardFromHtml(
+    {
+      id: "jwavro",
+      inventoryUrl: "https://www.jwavro.com/rental_list.php?hood=sfc",
+      instructions: "",
+      caveat:
+        "Live J. Wavro inventory. Verify availability before applying.",
+      maxCandidates: 20,
+    },
     candidate,
+    html,
     preferences,
   );
 
@@ -328,6 +399,7 @@ test("uses J. Wavro detail JSON-LD to enrich Extract candidates", () => {
   assert.equal(card.availability, "Available now");
   assert.equal(card.laundry, "in-building");
   assert.equal(card.petsAllowed, false);
+  assert.ok(card.amenities.includes("Roof deck"));
   assert.equal(card.images.length, 1);
 });
 
@@ -444,7 +516,7 @@ test("does not silently relax explicit must-have filters", () => {
     catches: [],
     preferenceFit: true,
   };
-  const ranked = rankApartments(
+  const deck = buildApartmentDeck(
     [apartment],
     {
       ...preferences,
@@ -456,8 +528,8 @@ test("does not silently relax explicit must-have filters", () => {
     },
   );
 
-  assert.equal(ranked.apartments.length, 0);
-  assert.equal(ranked.relaxed, false);
+  assert.equal(deck.apartments.length, 0);
+  assert.equal(deck.relaxed, false);
 });
 
 test("fills a deck after source diversity is exhausted", () => {
@@ -470,11 +542,11 @@ test("fills a deck after source diversity is exhausted", () => {
     }),
   );
 
-  const ranked = rankApartments(apartments, preferences);
+  const deck = buildApartmentDeck(apartments, preferences);
 
-  assert.equal(ranked.apartments.length, 8);
+  assert.equal(deck.apartments.length, 8);
   assert.equal(
-    new Set(ranked.apartments.map((apartment) => apartment.url)).size,
+    new Set(deck.apartments.map((apartment) => apartment.url)).size,
     8,
   );
 });
@@ -503,15 +575,19 @@ test("recalculates cached cards for the current preferences", () => {
     catches: ["Laundry is unverified", "Verify availability."],
     preferenceFit: false,
   };
-  const prepared = prepareApartmentForPreferences(apartment, {
-    ...preferences,
-    neighborhoods: ["Mission"],
-    laundry: "in-unit",
-    dishwasher: true,
-    pets: true,
-    minSquareFeet: 600,
-  });
+  const prepared = buildApartmentDeck(
+    [apartment],
+    {
+      ...preferences,
+      neighborhoods: ["Mission"],
+      laundry: "in-unit",
+      dishwasher: true,
+      pets: true,
+      minSquareFeet: 600,
+    },
+  ).apartments[0];
 
+  assert.ok(prepared);
   assert.equal(prepared.preferenceFit, true);
   assert.ok(prepared.matchScore > apartment.matchScore);
   assert.ok(prepared.matchReasons.includes("Within budget"));
@@ -521,35 +597,35 @@ test("recalculates cached cards for the current preferences", () => {
 
 test("formats listing availability for people instead of exposing ISO dates", () => {
   const now = new Date("2026-07-25T12:00:00.000Z");
+  const availabilityFor = (availability: string) =>
+    buildApartmentDeck(
+      [apartmentCard({ availability })],
+      preferences,
+      { now },
+    ).apartments[0];
 
   assert.equal(
-    formatAvailability("2026-07-05T00:00:00.000000Z", now),
+    availabilityFor("2026-07-05T00:00:00.000000Z")?.availability,
     "Available now",
   );
   assert.equal(
-    formatAvailability("2026-08-15T00:00:00.000000Z", now),
+    availabilityFor("2026-08-15T00:00:00.000000Z")?.availability,
     "Available Aug 15",
   );
   assert.equal(
-    formatAvailability("2027-01-03T00:00:00.000000Z", now),
+    availabilityFor("2027-01-03T00:00:00.000000Z")?.availability,
     "Available Jan 3, 2027",
   );
-  assert.equal(formatAvailability("Recently posted", now), "Recently posted");
-
-  const prepared = prepareApartmentForPreferences(
-    apartmentCard({
-      availability: "2026-07-05T00:00:00.000000Z",
-      matchReasons: [
-        "Correct bedroom count",
-        "Within budget",
-        "2026-07-05T00:00:00.000000Z",
-      ],
-    }),
-    preferences,
+  assert.equal(
+    availabilityFor("Recently posted")?.availability,
+    "Recently posted",
   );
-  assert.equal(prepared.availability, "Available now");
-  assert.ok(prepared.matchReasons.includes("Available now"));
-  assert.ok(!prepared.matchReasons.some((reason) => reason.includes("2026-07-05")));
+
+  const prepared = availabilityFor("2026-07-05T00:00:00.000000Z");
+  assert.ok(prepared?.matchReasons.includes("Available now"));
+  assert.ok(
+    !prepared?.matchReasons.some((reason) => reason.includes("2026-07-05")),
+  );
 });
 
 test("keeps one card per building across providers", () => {
@@ -564,7 +640,12 @@ test("keeps one card per building across providers", () => {
     address: "540 Leavenworth Street, Apt 209, San Francisco, CA",
   });
 
-  assert.deepEqual(dedupeApartments([first, second]), [first]);
+  const deck = buildApartmentDeck([first, second], preferences);
+  assert.equal(deck.analyzed, 1);
+  assert.deepEqual(
+    deck.apartments.map((apartment) => apartment.url),
+    [first.url],
+  );
 });
 
 test("does not recycle an excluded building under another listing URL", () => {
@@ -584,13 +665,24 @@ test("does not recycle an excluded building under another listing URL", () => {
     address: "123 Valencia Street, San Francisco, CA",
   });
 
+  const deck = buildApartmentDeck(
+    [seen, duplicate, fresh],
+    preferences,
+    { excludedUrls: [seen.url] },
+  );
+  assert.equal(deck.analyzed, 1);
   assert.deepEqual(
-    excludeApartments([seen, duplicate, fresh], [seen.url]),
-    [fresh],
+    deck.apartments.map((apartment) => apartment.url),
+    [fresh.url],
   );
 });
 
 test("maps client search lanes to persistent inventory sources", () => {
+  assert.equal(new Set(SOURCE_IDS).size, SOURCE_IDS.length);
+  assert.deepEqual(
+    new Set(LISTING_PROVIDERS.map((provider) => provider.sourceId)),
+    new Set(SOURCE_IDS),
+  );
   assert.deepEqual(selectedSources("fast"), [
     "brick-timber",
     "rentsfnow",
@@ -604,6 +696,8 @@ test("maps client search lanes to persistent inventory sources", () => {
     "landmark",
     "relisto",
   ]);
+  assert.equal(isSearchSource("independent"), true);
+  assert.equal(isSearchSource("unknown"), false);
 });
 
 test("coalesces concurrent requests for the same public page", async () => {

@@ -13,14 +13,16 @@ import {
   createApartmentCard,
   inferNeighborhood,
   matchesBedrooms,
-} from "./ranking";
+} from "./listing-card";
 import { HtmlResponseSchema } from "./schemas";
 import type {
-  ApartmentCard,
   ExtractedApartment,
   ListingSnapshot,
-  Preferences,
 } from "./schemas";
+import type {
+  ApartmentCard,
+  Preferences,
+} from "../../shared/search-contract";
 
 const globalCache = globalThis as typeof globalThis & {
   criblistCraigslistDeckCache?: Map<

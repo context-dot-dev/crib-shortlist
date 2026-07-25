@@ -7,15 +7,19 @@ import { ApartmentDeck } from "./deck";
 import { DetailDrawer, SavedPanel } from "./panels";
 import { SearchComplete, SearchSetup, Searching } from "./search";
 import {
+  ApartmentSearchResponseSchema,
+  SearchErrorResponseSchema,
+} from "../../../shared/search-contract";
+import {
   DEFAULT_PREFERENCES,
   PREFS_KEY,
   SAVED_KEY,
   SESSION_KEY,
   type ApartmentCard,
   type Decision,
-  type Preferences,
   type Stage,
 } from "./model";
+import { loadHuntStorage } from "./storage";
 
 export function HomePage() {
   const [hydrated, setHydrated] = useState(false);
@@ -53,34 +57,20 @@ export function HomePage() {
   // here rather than a cascading-render smell.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    try {
-      const rawSaved = localStorage.getItem(SAVED_KEY);
-      if (rawSaved) setSaved(JSON.parse(rawSaved) as ApartmentCard[]);
-      const rawPrefs = localStorage.getItem(PREFS_KEY);
-      if (rawPrefs) {
-        setPreferences(
-          restorePreferences(JSON.parse(rawPrefs) as Partial<Preferences>),
-        );
-      }
-      const rawSession = localStorage.getItem(SESSION_KEY);
-      if (rawSession) {
-        const session = JSON.parse(rawSession) as {
-          apartments: ApartmentCard[];
-          currentIndex: number;
-          seenUrls?: string[];
-        };
-        if (Array.isArray(session.apartments) && session.apartments.length > 0) {
-          setApartments(session.apartments);
-          setCurrentIndex(Math.min(session.currentIndex ?? 0, session.apartments.length - 1));
-          setSeenUrls(
-            Array.isArray(session.seenUrls) ? session.seenUrls : [],
-          );
-          setHasFoundResults(true);
-          setStage("deck");
-        }
-      }
-    } catch {
-      /* ignore malformed storage */
+    const restored = loadHuntStorage(localStorage);
+    setSaved(restored.saved);
+    setPreferences(restored.preferences);
+    if (restored.session) {
+      setApartments(restored.session.apartments);
+      setCurrentIndex(
+        Math.min(
+          restored.session.currentIndex,
+          restored.session.apartments.length - 1,
+        ),
+      );
+      setSeenUrls(restored.session.seenUrls);
+      setHasFoundResults(true);
+      setStage("deck");
     }
     setHydrated(true);
   }, []);
@@ -158,15 +148,17 @@ export function HomePage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...preferences, excludeUrls }),
       });
-      const result = (await response.json()) as {
-        apartments?: ApartmentCard[];
-        error?: string;
-      };
+      const responseBody: unknown = await response.json();
       if (!response.ok) {
-        throw new Error(result.error ?? "the search hit a snag.");
+        const error = SearchErrorResponseSchema.safeParse(responseBody);
+        throw new Error(
+          error.success ? error.data.error : "the search hit a snag.",
+        );
       }
+      const result = ApartmentSearchResponseSchema.safeParse(responseBody);
+      if (!result.success) throw new Error("the search returned invalid data.");
       if (searchSequence.current !== sequence) return;
-      const nextApartments = result.apartments ?? [];
+      const nextApartments = result.data.apartments;
       if (nextApartments.length === 0) {
         setApartments([]);
         setStage("done");
@@ -307,24 +299,4 @@ export function HomePage() {
       </AnimatePresence>
     </main>
   );
-}
-
-function restorePreferences(stored: Partial<Preferences>): Preferences {
-  const budgetMin = boundedBudget(stored.budgetMin, 0);
-  const budgetMax = boundedBudget(stored.budgetMax, 1_000);
-  return {
-    ...DEFAULT_PREFERENCES,
-    ...stored,
-    budgetMin: Math.min(budgetMin, budgetMax),
-    budgetMax: Math.max(budgetMin, budgetMax),
-  };
-}
-
-function boundedBudget(value: number | undefined, minimum: number) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return minimum === 0
-      ? DEFAULT_PREFERENCES.budgetMin
-      : DEFAULT_PREFERENCES.budgetMax;
-  }
-  return Math.min(20_000, Math.max(minimum, value));
 }
