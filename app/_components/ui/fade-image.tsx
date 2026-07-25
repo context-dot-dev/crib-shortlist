@@ -11,24 +11,28 @@ function FadeImage({
   src,
   ...rest
 }: FadeImageProps) {
-  const [loaded, setLoaded] = useState(false);
+  const [loadedSrc, setLoadedSrc] = useState<FadeImageProps["src"]>();
+  const [failedSrc, setFailedSrc] = useState<FadeImageProps["src"]>();
   const ref = useRef<HTMLImageElement>(null);
+  const loaded = Boolean(src) && loadedSrc === src;
+  const failed = Boolean(src) && failedSrc === src;
 
   useEffect(() => {
     const image = ref.current;
     if (!image || !src) return;
-    setLoaded(false);
     let cancelled = false;
     image
       .decode()
       .catch(() => undefined)
       .finally(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setLoadedSrc(src);
       });
     return () => {
       cancelled = true;
     };
   }, [src]);
+
+  if (failed || !src) return null;
 
   return (
     <img
@@ -36,9 +40,12 @@ function FadeImage({
       alt={alt}
       src={src}
       decoding="async"
-      onLoad={onLoad}
+      onLoad={(event) => {
+        setLoadedSrc(src);
+        onLoad?.(event);
+      }}
       onError={(event) => {
-        setLoaded(true);
+        setFailedSrc(src);
         onError?.(event);
       }}
       className={cn(
