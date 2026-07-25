@@ -190,6 +190,90 @@ body {
     /* Hairline ring so the rounded edge reads against the near-white mat. */
     box-shadow: 0 0 0 1px rgb(63 48 38 / 0.06);
   }
+
+}
+
+@layer components {
+  @media (min-width: 768px) {
+    .nook-canvas .nook-footer {
+      position: absolute;
+      right: 0;
+      bottom: 16px;
+      left: 0;
+      gap: 0;
+      padding-block: 0;
+    }
+  }
+
+  @media (min-width: 768px) and (max-height: 900px) {
+    .nook-canvas .nook-header {
+      height: 64px;
+      padding-top: 0;
+    }
+
+    .nook-canvas .nook-header > div:first-child {
+      padding-top: 0;
+    }
+
+    .nook-canvas .nook-search-setup {
+      padding-block: 8px;
+    }
+
+    .nook-canvas .nook-search-hero {
+      margin-bottom: 14px;
+    }
+
+    .nook-canvas .nook-search-title {
+      font-size: 40px;
+    }
+
+    .nook-canvas .nook-search-copy {
+      margin-top: 8px;
+    }
+
+    .nook-canvas .nook-provider-sources {
+      margin-top: 12px;
+      gap: 8px;
+    }
+
+    .nook-canvas .nook-search-card {
+      padding: 14px;
+    }
+
+    .nook-canvas .nook-field-gap {
+      margin-top: 10px;
+    }
+
+    .nook-canvas .nook-field-label {
+      margin-bottom: 5px;
+    }
+
+    .nook-canvas .nook-segmented {
+      padding: 3px;
+    }
+
+    .nook-canvas .nook-segmented-choice {
+      padding-block: 6px;
+    }
+
+    .nook-canvas .nook-budget-side {
+      padding-block: 5px;
+    }
+
+    .nook-canvas .nook-search-card .nook-input {
+      height: 40px;
+    }
+
+    .nook-canvas .nook-more {
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+
+    .nook-canvas .nook-search-submit {
+      height: 40px;
+      margin-top: 10px;
+    }
+  }
 }
 
 /* Deep, feathered elevation stack (five layers) for the hero surfaces. */

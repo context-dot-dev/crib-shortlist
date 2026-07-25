@@ -224,6 +224,7 @@ export function HomePage() {
     <main className="nook-canvas text-foreground">
       <div className="relative z-10 flex min-h-dvh flex-col px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:px-6 md:min-h-[calc(100dvh-44px)] md:px-10">
         <Header
+          city={preferences.city}
           saved={saved}
           onOpenSaved={() => setSavedOpen(true)}
           onHome={editSearch}

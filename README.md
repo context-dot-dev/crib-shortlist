@@ -2,7 +2,7 @@
   <img src="./public/criblist-logo.png" width="336" alt="Criblist" />
 </p>
 
-<p align="center"><em>the sf hunt, minus the hunting.</em></p>
+<p align="center"><em>the sf + nyc hunt, minus the hunting.</em></p>
 
 <p align="center">
   <a href="https://crib-shortlist.vercel.app"><strong>Live demo</strong></a>
@@ -11,7 +11,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license" /></a>
 </p>
 
-Criblist turns live San Francisco rental inventory into a small,
+Criblist turns live San Francisco and New York City rental inventory into a small,
 preference-matched deck of apartments to review, swipe, and shortlist. It is a
 runnable product and a reference implementation of the
 [Context.dev Web Extraction API](https://context.dev).
@@ -22,7 +22,7 @@ runnable product and a reference implementation of the
 
 ## What it does
 
-- Searches nine live rental marketplaces and property managers
+- Searches fourteen live rental marketplaces and property managers across two cities
 - Filters by budget, bedrooms, bathrooms, neighborhood, laundry, pets,
   dishwasher, and size
 - Normalizes different source formats into one validated Apartment Card
@@ -32,14 +32,17 @@ runnable product and a reference implementation of the
 
 ## How Context.dev is used
 
-Criblist has three acquisition paths that share the same validation, ranking,
+Criblist has four acquisition paths that share the same validation, ranking,
 and deduplication pipeline:
 
 1. The **HTML API** renders Craigslist search and detail pages.
-2. The **Extract API** turns five property-manager inventory pages into typed
+2. The **Markdown API** turns filtered StreetEasy result pages into a compact,
+   parseable inventory stream.
+3. The **Extract API** turns property-manager inventory pages into typed
    listing candidates.
-3. Three direct adapters read public inventory endpoints and page markup.
-4. The **Brand API** enriches the provider list with current brand identities.
+4. Direct adapters read structured public inventory endpoints and page markup.
+
+The **Brand API** enriches the provider list with current brand identities.
 
 All Context.dev calls happen on the server. The API key is never sent to the
 browser.
@@ -89,6 +92,15 @@ TURSO_AUTH_TOKEN=your_token_here
 
 ```bash
 npm run cache:warm
+```
+
+Pass `--city=sf` or `--city=nyc` to refresh one city while developing.
+Add `--source=<source-id>` or `--bedrooms=<studio|1|2|3+>` to narrow a
+debugging run:
+
+```bash
+npm run cache:warm -- --city=nyc
+npm run cache:warm -- --city=nyc --source=streeteasy --bedrooms=2
 ```
 
 The tables and indexes are created automatically. To refresh continuously
@@ -150,7 +162,8 @@ server/
 └── search/                    source adapters, normalization, and ranking
 
 shared/
-├── providers.ts               provider catalog and search-lane mapping
+├── cities.ts                  city metadata and neighborhood catalogs
+├── providers.ts               city-aware provider catalog and search-lane mapping
 └── search-contract.ts         shared browser/server schemas
 
 scripts/                       live stress and inventory utilities
@@ -174,6 +187,8 @@ codebase.
 
 ## Live sources
 
+### San Francisco
+
 - Craigslist San Francisco
 - Brick + Timber
 - RentSFNow
@@ -183,6 +198,14 @@ codebase.
 - Rentals in SF
 - Landmark Real Estate
 - ReLISTO
+
+### New York City
+
+- StreetEasy
+- Nooklyn
+- The Brodsky Organization
+- Stonehenge NYC
+- Craigslist New York City
 
 Adapters begin at each publisher's current-availability page. Upstream HTML,
 APIs, and access policies can change without notice, so source fixes should

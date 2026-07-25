@@ -103,12 +103,12 @@ export async function readListingCache(
     coverage.rows.map((row) => String(row.source_id)),
   );
   const refreshTimes = coverage.rows.map((row) => Number(row.refreshed_at));
+  const requiredCoverage =
+    sourceIds.length <= 1 ? sourceIds.length : sourceIds.length - 1;
 
   return {
     configured: true,
-    coverageFresh: sourceIds.every((sourceId) =>
-      coveredSources.has(sourceId),
-    ),
+    coverageFresh: coveredSources.size >= requiredCoverage,
     ageMs:
       refreshTimes.length > 0
         ? now - Math.min(...refreshTimes)

@@ -4,8 +4,9 @@ import {
   type ProviderBrand,
 } from "../../shared/providers";
 import { requestContext } from "../search/context-client";
+import type { CityId } from "../../shared/cities";
 
-const PROVIDER_CACHE_VERSION = 4;
+const PROVIDER_CACHE_VERSION = 6;
 
 const BrandResponseSchema = z
   .object({
@@ -45,16 +46,27 @@ const BrandResponseSchema = z
   .passthrough();
 
 const globalProviderBrands = globalThis as typeof globalThis & {
-  criblistProviderBrands?: {
+  criblistProviderBrands?: Map<string, {
     version: number;
     expiresAt: number;
     providers: ProviderBrand[];
-  };
-  criblistProviderBrandsRequest?: Promise<ProviderBrand[]>;
+  }>;
+  criblistProviderBrandsRequests?: Map<string, Promise<ProviderBrand[]>>;
 };
 
-export async function retrieveProviderBrands(apiKey: string) {
-  const cached = globalProviderBrands.criblistProviderBrands;
+const providerCache =
+  globalProviderBrands.criblistProviderBrands ?? new Map();
+const providerRequests =
+  globalProviderBrands.criblistProviderBrandsRequests ?? new Map();
+globalProviderBrands.criblistProviderBrands = providerCache;
+globalProviderBrands.criblistProviderBrandsRequests = providerRequests;
+
+export async function retrieveProviderBrands(
+  apiKey: string,
+  city?: CityId,
+) {
+  const cacheKey = city ?? "all";
+  const cached = providerCache.get(cacheKey);
   if (
     cached &&
     cached.version === PROVIDER_CACHE_VERSION &&
@@ -63,26 +75,29 @@ export async function retrieveProviderBrands(apiKey: string) {
     return cached.providers;
   }
 
-  const activeRequest = globalProviderBrands.criblistProviderBrandsRequest;
+  const activeRequest = providerRequests.get(cacheKey);
   if (activeRequest) return activeRequest;
 
+  const providersForCity = LISTING_PROVIDERS.filter(
+    (provider) => city === undefined || provider.city === city,
+  );
   const request = Promise.all(
-    LISTING_PROVIDERS.map((provider) =>
+    providersForCity.map((provider) =>
       retrieveProviderBrand(provider, apiKey),
     ),
   );
-  globalProviderBrands.criblistProviderBrandsRequest = request;
+  providerRequests.set(cacheKey, request);
   try {
     const providers = await request;
-    globalProviderBrands.criblistProviderBrands = {
+    providerCache.set(cacheKey, {
       version: PROVIDER_CACHE_VERSION,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       providers,
-    };
+    });
     return providers;
   } finally {
-    if (globalProviderBrands.criblistProviderBrandsRequest === request) {
-      delete globalProviderBrands.criblistProviderBrandsRequest;
+    if (providerRequests.get(cacheKey) === request) {
+      providerRequests.delete(cacheKey);
     }
   }
 }
@@ -108,6 +123,7 @@ async function retrieveProviderBrand(
     const brand = fallbackBrand ?? primaryBrand;
     return {
       sourceId: provider.sourceId,
+      city: provider.city,
       domain: provider.domain,
       label: provider.label,
       url: provider.url,
@@ -119,6 +135,7 @@ async function retrieveProviderBrand(
   } catch {
     return {
       sourceId: provider.sourceId,
+      city: provider.city,
       domain: provider.domain,
       label: provider.label,
       url: provider.url,

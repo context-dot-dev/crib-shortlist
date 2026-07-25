@@ -25,8 +25,8 @@
     "test": "tsx --test tests/*.test.ts",
     "check": "npm run lint && npm run typecheck && npm test",
     "stress:search": "node scripts/stress-search.mjs",
-    "cache:warm": "tsx scripts/warm-listings.ts",
-    "cache:watch": "tsx scripts/warm-listings.ts --watch"
+    "cache:warm": "node --env-file-if-exists=.env.local --import tsx scripts/warm-listings.ts",
+    "cache:watch": "node --env-file-if-exists=.env.local --import tsx scripts/warm-listings.ts --watch"
   },
   "keywords": [
     "apartments",

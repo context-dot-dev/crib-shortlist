@@ -1,3 +1,5 @@
+import type { CityId } from "./cities";
+
 export type SearchSource =
   | "all"
   | "fast"
@@ -10,6 +12,7 @@ type ProviderLane = Exclude<SearchSource, "all">;
 export const LISTING_PROVIDERS = [
   {
     sourceId: "craigslist",
+    city: "sf",
     searchOrder: 3,
     lanes: ["craigslist"] as const,
     domain: "craigslist.org",
@@ -19,6 +22,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "brick-timber",
+    city: "sf",
     searchOrder: 0,
     lanes: ["extract", "independent"] as const,
     domain: "rentbt.com",
@@ -28,6 +32,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "rentsfnow",
+    city: "sf",
     searchOrder: 1,
     lanes: ["fast", "independent"] as const,
     domain: "rentsfnow.com",
@@ -41,6 +46,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "mosser",
+    city: "sf",
     searchOrder: 2,
     lanes: ["fast", "independent"] as const,
     domain: "mosserliving.com",
@@ -50,6 +56,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "jwavro",
+    city: "sf",
     searchOrder: 4,
     lanes: ["extract", "independent"] as const,
     domain: "jwavro.com",
@@ -59,6 +66,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "rentalsinc",
+    city: "sf",
     searchOrder: 5,
     lanes: ["extract", "independent"] as const,
     domain: "rentalsinc.com",
@@ -68,6 +76,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "rentalsinsf",
+    city: "sf",
     searchOrder: 6,
     lanes: ["fast", "independent"] as const,
     domain: "rentalsinsf.com",
@@ -77,6 +86,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "landmark",
+    city: "sf",
     searchOrder: 7,
     lanes: ["extract", "independent"] as const,
     domain: "landmarksf.com",
@@ -86,6 +96,7 @@ export const LISTING_PROVIDERS = [
   },
   {
     sourceId: "relisto",
+    city: "sf",
     searchOrder: 8,
     lanes: ["extract", "independent"] as const,
     domain: "relisto.com",
@@ -93,8 +104,59 @@ export const LISTING_PROVIDERS = [
     url: "https://www.relisto.com/search/",
     accent: "#c54831",
   },
+  {
+    sourceId: "streeteasy",
+    city: "nyc",
+    searchOrder: 0,
+    lanes: ["extract", "independent"] as const,
+    domain: "streeteasy.com",
+    label: "streeteasy",
+    url: "https://streeteasy.com/for-rent/nyc",
+    accent: "#006aff",
+  },
+  {
+    sourceId: "nooklyn",
+    city: "nyc",
+    searchOrder: 1,
+    lanes: ["fast", "independent"] as const,
+    domain: "nooklyn.com",
+    label: "nooklyn",
+    url: "https://nooklyn.com/listings",
+    accent: "#ff5a5f",
+  },
+  {
+    sourceId: "brodsky",
+    city: "nyc",
+    searchOrder: 2,
+    lanes: ["extract", "independent"] as const,
+    domain: "brodsky.com",
+    label: "brodsky",
+    url: "https://www.brodsky.com/rentals",
+    accent: "#c9a464",
+  },
+  {
+    sourceId: "stonehenge",
+    city: "nyc",
+    searchOrder: 3,
+    lanes: ["extract", "independent"] as const,
+    domain: "stonehengenyc.com",
+    label: "stonehenge",
+    url: "https://www.stonehengenyc.com/apartments",
+    accent: "#27666e",
+  },
+  {
+    sourceId: "nyc-craigslist",
+    city: "nyc",
+    searchOrder: 4,
+    lanes: ["craigslist"] as const,
+    domain: "craigslist.org",
+    label: "craigslist",
+    url: "https://newyork.craigslist.org/search/apa",
+    accent: "#7d35a5",
+  },
 ] as const satisfies ReadonlyArray<{
   sourceId: string;
+  city: CityId;
   searchOrder: number;
   lanes: readonly ProviderLane[];
   domain: string;
@@ -107,7 +169,11 @@ export const LISTING_PROVIDERS = [
 export type SourceId = (typeof LISTING_PROVIDERS)[number]["sourceId"];
 
 export const SOURCE_IDS: SourceId[] = [...LISTING_PROVIDERS]
-  .sort((first, second) => first.searchOrder - second.searchOrder)
+  .sort((first, second) =>
+    first.city === second.city
+      ? first.searchOrder - second.searchOrder
+      : first.city.localeCompare(second.city),
+  )
   .map((provider) => provider.sourceId);
 
 const SEARCH_SOURCES = [
@@ -125,16 +191,24 @@ export function isSearchSource(value: unknown): value is SearchSource {
   );
 }
 
-export function selectedSources(source: SearchSource): SourceId[] {
-  if (source === "all") return [...SOURCE_IDS];
-  return SOURCE_IDS.filter((sourceId) =>
-    LISTING_PROVIDERS.find((provider) => provider.sourceId === sourceId)
-      ?.lanes.some((lane) => lane === source),
-  );
+export function selectedSources(
+  source: SearchSource,
+  city: CityId,
+): SourceId[] {
+  return SOURCE_IDS.filter((sourceId) => {
+    const provider = LISTING_PROVIDERS.find(
+      (candidate) => candidate.sourceId === sourceId,
+    );
+    return (
+      provider?.city === city &&
+      (source === "all" || provider.lanes.some((lane) => lane === source))
+    );
+  });
 }
 
 export type ProviderBrand = {
   sourceId: SourceId;
+  city: CityId;
   domain: string;
   label: string;
   url: string;
@@ -144,9 +218,12 @@ export type ProviderBrand = {
   accent: string;
 };
 
-export function fallbackProviderBrands(): ProviderBrand[] {
-  return LISTING_PROVIDERS.map((provider) => ({
+export function fallbackProviderBrands(city?: CityId): ProviderBrand[] {
+  return LISTING_PROVIDERS.filter(
+    (provider) => city === undefined || provider.city === city,
+  ).map((provider) => ({
     sourceId: provider.sourceId,
+    city: provider.city,
     domain: provider.domain,
     label: provider.label,
     url: provider.url,

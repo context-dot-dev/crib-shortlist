@@ -24,6 +24,10 @@ import type {
   ApartmentCard,
   Preferences,
 } from "../../shared/search-contract";
+import {
+  CITY_CONFIG,
+  type CityId,
+} from "../../shared/cities";
 
 export type ExtractedInventoryConfig = {
   id: string;
@@ -32,7 +36,7 @@ export type ExtractedInventoryConfig = {
   caveat: string;
   defaultAddress?: string;
   maxCandidates?: number;
-  requireSanFranciscoAddress?: boolean;
+  requiredCity?: CityId;
 };
 
 const globalCache = globalThis as typeof globalThis & {
@@ -136,7 +140,7 @@ export function extractedCardFromHtml(
   const name =
     stringValue(listing?.name) ??
     candidate.name ??
-    "San Francisco apartment";
+    `${CITY_CONFIG[preferences.city].fullName} apartment`;
   const description =
     stringValue(listing?.description) ??
     stringValue(decodeHtml(metaContent(html, "description") ?? "")) ??
@@ -156,8 +160,8 @@ export function extractedCardFromHtml(
     config.defaultAddress ??
     null;
   if (
-    config.requireSanFranciscoAddress &&
-    (!address || !/\bsan francisco\b/i.test(address))
+    config.requiredCity &&
+    (!address || !isAddressInCity(address, config.requiredCity))
   ) {
     return null;
   }
@@ -171,7 +175,8 @@ export function extractedCardFromHtml(
     name,
     address,
     neighborhood:
-      candidate.neighborhood ?? inferNeighborhood(`${address ?? ""} ${pageText}`),
+      candidate.neighborhood ??
+      inferNeighborhood(`${address ?? ""} ${pageText}`, preferences.city),
     price,
     bedrooms,
     bathrooms:
@@ -205,6 +210,13 @@ export function extractedCardFromHtml(
     extracted,
     images,
     preferences,
+  );
+}
+
+function isAddressInCity(address: string, city: CityId) {
+  if (city === "sf") return /\bsan francisco\b/i.test(address);
+  return /\b(?:new york|brooklyn|queens|bronx|manhattan|staten island)\b/i.test(
+    address,
   );
 }
 

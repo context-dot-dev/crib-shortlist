@@ -7,7 +7,8 @@ import {
   buildApartmentDeck,
   mergeApartmentInventory,
 } from "./apartment-deck";
-import { removedCraigslistListingUrls } from "./craigslist";
+import { classifyCraigslistListingUrls } from "./craigslist";
+import { removedStreetEasyListingUrls } from "./streeteasy";
 import type {
   ApartmentCard,
   Preferences,
@@ -18,8 +19,11 @@ import {
   type SearchSource,
   type SourceId,
 } from "./sources";
+import type { CityId } from "../../shared/cities";
 
 export type { SearchSource } from "./sources";
+
+const LIVE_SOURCE_TIMEOUT_MS = 30_000;
 
 export async function searchApartments(
   preferences: Preferences,
@@ -28,7 +32,7 @@ export async function searchApartments(
   excludedUrls: string[] = [],
 ) {
   const startedAt = Date.now();
-  const sources = selectedSources(source);
+  const sources = selectedSources(source, preferences.city);
   const cached = await safeReadCache(preferences, sources);
   const knownRemovedUrls: string[] = [];
 
@@ -37,7 +41,6 @@ export async function searchApartments(
       cached.apartments,
       preferences,
       excludedUrls,
-      apiKey,
     );
     knownRemovedUrls.push(...verified.removedUrls);
     await pruneRemovedListings(verified.removedUrls).catch(() => 0);
@@ -98,7 +101,6 @@ export async function searchApartments(
       cached.apartments,
       preferences,
       [...excludedUrls, ...knownRemovedUrls],
-      apiKey,
     );
     await pruneRemovedListings(fallback.removedUrls).catch(() => 0);
     if (fallback.deck.apartments.length > 0) {
@@ -147,9 +149,11 @@ export async function searchApartments(
 }
 
 export function inventoryPreferences(
+  city: CityId,
   bedrooms: Preferences["bedrooms"],
 ): Preferences {
   return {
+    city,
     budgetMin: 0,
     budgetMax: 20_000,
     bedrooms,
@@ -170,11 +174,13 @@ export async function refreshInventorySegment(
   apiKey: string,
 ) {
   const result = await measure(async () => {
-    const priceBands = [
-      { budgetMin: 0, budgetMax: 1_799 },
-      { budgetMin: 1_800, budgetMax: 3_500 },
-      { budgetMin: 3_501, budgetMax: 20_000 },
-    ];
+    const priceBands = usesFullInventoryFeed(sourceId)
+      ? [{ budgetMin: 0, budgetMax: 20_000 }]
+      : [
+          { budgetMin: 0, budgetMax: 1_799 },
+          { budgetMin: 1_800, budgetMax: 3_500 },
+          { budgetMin: 3_501, budgetMax: 20_000 },
+        ];
     const apartments = await Promise.all(
       priceBands.map((priceBand) =>
         runSource(
@@ -193,6 +199,14 @@ export async function refreshInventorySegment(
     apartments: result.value,
     durationMs: result.durationMs,
   };
+}
+
+function usesFullInventoryFeed(sourceId: SourceId) {
+  return [
+    "nooklyn",
+    "brodsky",
+    "stonehenge",
+  ].includes(sourceId);
 }
 
 async function discoverSources(
@@ -216,7 +230,11 @@ async function measureSource(
   try {
     return {
       sourceId,
-      value: await runSource(sourceId, preferences, apiKey),
+      value: await withTimeout(
+        runSource(sourceId, preferences, apiKey),
+        LIVE_SOURCE_TIMEOUT_MS,
+        `${sourceId} exceeded the live search budget.`,
+      ),
       durationMs: Date.now() - startedAt,
       error: null,
     };
@@ -232,19 +250,10 @@ async function measureSource(
 
 const DECK_VERIFICATION_ROUNDS = 4;
 
-/**
- * Builds an Apartment Deck from Listing Inventory, but confirms every
- * Craigslist card in the deck still points to a live posting. Craigslist
- * serves flagged/deleted/expired postings as normal HTTP 200 pages, so
- * cached cards must be re-checked against the posting body before renters
- * see them. Removed cards are excluded and the deck is rebuilt so other
- * inventory can fill the gap.
- */
 export async function verifiedApartmentDeck(
   apartments: ApartmentCard[],
   preferences: Preferences,
   excludedUrls: string[],
-  apiKey: string,
 ) {
   const exclusions = new Set(excludedUrls);
   const liveUrls = new Set<string>();
@@ -254,34 +263,57 @@ export async function verifiedApartmentDeck(
     const deck = buildApartmentDeck(apartments, preferences, {
       excludedUrls: [...exclusions],
     });
-    const unverifiedUrls = deck.apartments
+    const unverifiedCraigslistUrls = deck.apartments
       .filter(
         (apartment) =>
           apartment.provider === "craigslist.org" &&
           !liveUrls.has(apartment.url),
       )
       .map((apartment) => apartment.url);
+    const unverifiedStreetEasyUrls = deck.apartments
+      .filter(
+        (apartment) =>
+          apartment.provider === "streeteasy.com" &&
+          !liveUrls.has(apartment.url),
+      )
+      .map((apartment) => apartment.url);
+    const unverifiedUrls = [
+      ...unverifiedCraigslistUrls,
+      ...unverifiedStreetEasyUrls,
+    ];
     if (unverifiedUrls.length === 0) return { deck, removedUrls };
 
-    const removed = new Set(
-      await removedCraigslistListingUrls(unverifiedUrls, apiKey),
+    const [craigslistVerification, removedStreetEasyUrls] =
+      await Promise.all([
+        classifyCraigslistListingUrls(unverifiedCraigslistUrls),
+        removedStreetEasyListingUrls(unverifiedStreetEasyUrls),
+      ]);
+    const removed = new Set([
+      ...craigslistVerification.removedUrls,
+      ...removedStreetEasyUrls,
+    ]);
+    const unavailable = new Set(
+      craigslistVerification.unverifiedUrls,
     );
     for (const url of unverifiedUrls) {
       if (removed.has(url)) {
         exclusions.add(url);
         removedUrls.push(url);
+      } else if (unavailable.has(url)) {
+        exclusions.add(url);
       } else {
         liveUrls.add(url);
       }
     }
-    if (removed.size === 0) return { deck, removedUrls };
+    if (removed.size === 0 && unavailable.size === 0) {
+      return { deck, removedUrls };
+    }
   }
 
-  // Verification budget exhausted while removals keep surfacing: only offer
-  // Craigslist cards that were confirmed live.
   const provenApartments = apartments.filter(
     (apartment) =>
-      apartment.provider !== "craigslist.org" ||
+      (apartment.provider !== "craigslist.org" &&
+        apartment.provider !== "streeteasy.com") ||
       liveUrls.has(apartment.url),
   );
   return {
@@ -314,4 +346,22 @@ async function measure<T>(operation: () => Promise<T>) {
     value: await operation(),
     durationMs: Date.now() - startedAt,
   };
+}
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  message: string,
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

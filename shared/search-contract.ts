@@ -1,6 +1,8 @@
 import * as z from "zod/v4";
+import { CITY_IDS } from "./cities";
 
 const PreferenceShape = {
+  city: z.enum(CITY_IDS).default("sf"),
   budgetMin: z.number().min(0).max(20_000),
   budgetMax: z.number().min(1_000).max(20_000),
   bedrooms: z.enum(["studio", "1", "2", "3+"]),
@@ -41,6 +43,7 @@ export const SearchRequestSchema = z
   });
 
 export const ApartmentCardSchema = z.object({
+  city: z.enum(CITY_IDS).default("sf"),
   name: z.string(),
   url: z.string(),
   provider: z.string().nullable(),

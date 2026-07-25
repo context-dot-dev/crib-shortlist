@@ -13,12 +13,17 @@ import { useSquircle } from "@/_lib/use-squircle";
 import { cn } from "@/_lib/utils";
 import {
   EASE,
-  NEIGHBORHOODS,
+  cityPreferences,
   formatSearchLabel,
   type LaundryPreference,
   type Preferences,
 } from "./model";
 import { ProviderSources } from "./provider-sources";
+import {
+  CITY_CONFIG,
+  CITY_IDS,
+  type CityId,
+} from "../../../shared/cities";
 
 export function SearchSetup({
   preferences,
@@ -33,6 +38,7 @@ export function SearchSetup({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [areasOpen, setAreasOpen] = useState(false);
+  const city = CITY_CONFIG[preferences.city];
 
   const toggleNeighborhood = (neighborhood: string) => {
     const selected = preferences.neighborhoods.includes(neighborhood);
@@ -43,43 +49,62 @@ export function SearchSetup({
     });
   };
 
+  const selectCity = (nextCity: CityId) => {
+    setAreasOpen(false);
+    onChange(cityPreferences(nextCity));
+  };
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.24, ease: EASE }}
-      className="mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center py-6 lowercase"
+      className="nook-search-setup mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center py-6 lowercase"
     >
-      <div className="mb-7 text-center">
-        <h1 className="mx-auto max-w-[420px] text-balance text-[38px] font-medium leading-[0.98] tracking-[-1.8px] sm:text-[48px]">
-          the sf hunt, minus the hunting.
+      <div className="nook-search-hero mb-7 text-center">
+        <h1 className="nook-search-title mx-auto max-w-[420px] text-balance text-[38px] font-medium leading-[0.98] tracking-[-1.8px] sm:text-[48px]">
+          {city.headline}
         </h1>
-        <p className="mx-auto mt-4 max-w-[350px] text-pretty text-[14px] leading-[20px] text-secondary">
+        <p className="nook-search-copy mx-auto mt-4 max-w-[350px] text-pretty text-[14px] leading-[20px] text-secondary">
           tell criblist what you want. it pulls listings that are live right
           now and hands you a deck to swipe through.
         </p>
-        <ProviderSources />
+        <ProviderSources city={preferences.city} placement="hero" />
       </div>
 
-      <PanelCard radius={22} className="p-4 sm:p-5">
-        <Field label="i'm looking for">
+      <PanelCard radius={22} className="nook-search-card p-4 sm:p-5">
+        <Field label="where">
           <ChoiceGroup
             segmented
-            value={preferences.bedrooms}
-            options={[
-              ["studio", "studio"],
-              ["1", "1 bed"],
-              ["2", "2 beds"],
-              ["3+", "3+ beds"],
-            ]}
-            onChange={(bedrooms) =>
-              onChange({ bedrooms: bedrooms as Preferences["bedrooms"] })
-            }
+            value={preferences.city}
+            options={CITY_IDS.map((cityId) => [
+              cityId,
+              `${CITY_CONFIG[cityId].emoji} ${CITY_CONFIG[cityId].shortLabel}`,
+            ])}
+            onChange={(cityId) => selectCity(cityId as CityId)}
           />
         </Field>
 
-        <div className="mt-4">
+        <div className="nook-field-gap mt-4">
+          <Field label="i'm looking for">
+            <ChoiceGroup
+              segmented
+              value={preferences.bedrooms}
+              options={[
+                ["studio", "studio"],
+                ["1", "1 bed"],
+                ["2", "2 beds"],
+                ["3+", "3+ beds"],
+              ]}
+              onChange={(bedrooms) =>
+                onChange({ bedrooms: bedrooms as Preferences["bedrooms"] })
+              }
+            />
+          </Field>
+        </div>
+
+        <div className="nook-field-gap mt-4">
           <Field label="monthly budget">
             <BudgetRange
               minimum={preferences.budgetMin}
@@ -90,7 +115,7 @@ export function SearchSetup({
           </Field>
         </div>
 
-        <div className="mt-4">
+        <div className="nook-field-gap mt-4">
           <Field label="neighborhoods">
             <button
               type="button"
@@ -99,7 +124,7 @@ export function SearchSetup({
             >
               <span className="truncate">
                 {preferences.neighborhoods.length === 0
-                  ? "anywhere in sf"
+                  ? city.anywhereLabel
                   : preferences.neighborhoods.join(", ")}
               </span>
               <Icon
@@ -126,9 +151,9 @@ export function SearchSetup({
                     active={preferences.neighborhoods.length === 0}
                     onClick={() => onChange({ neighborhoods: [] })}
                   >
-                    all sf
+                    {city.allLabel}
                   </Choice>
-                  {NEIGHBORHOODS.map((neighborhood) => (
+                  {city.neighborhoods.map((neighborhood) => (
                     <Choice
                       key={neighborhood}
                       active={preferences.neighborhoods.includes(neighborhood)}
@@ -146,7 +171,7 @@ export function SearchSetup({
         <button
           type="button"
           onClick={() => setMoreOpen((open) => !open)}
-          className="mt-4 flex w-full items-center justify-between border-t border-border/80 pt-3.5 text-[12px] font-medium text-secondary outline-none transition-colors hover:text-foreground"
+          className="nook-more mt-4 flex w-full items-center justify-between border-t border-border/80 pt-3.5 text-[12px] font-medium text-secondary outline-none transition-colors hover:text-foreground"
         >
           <span>{moreOpen ? "hide must-haves" : "add must-haves"}</span>
           <span
@@ -242,7 +267,10 @@ export function SearchSetup({
           </p>
         ) : null}
 
-        <PrimaryButton onClick={onSearch} className="mt-4 h-11 w-full">
+        <PrimaryButton
+          onClick={onSearch}
+          className="nook-search-submit mt-4 h-11 w-full"
+        >
           build my deck
           <Icon glyph={IconArrowRightFill18} size={16} />
         </PrimaryButton>
@@ -414,7 +442,7 @@ function PanelCard({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="block">
-      <span className="mb-2 block text-[11px] font-semibold tracking-[0.04em] text-secondary">
+      <span className="nook-field-label mb-2 block text-[11px] font-semibold tracking-[0.04em] text-secondary">
         {label}
       </span>
       {children}
@@ -437,7 +465,7 @@ function ChoiceGroup({
     <div
       className={cn(
         segmented
-          ? "grid grid-cols-4 gap-1 rounded-[15px] bg-surface-sunken p-1"
+          ? "nook-segmented grid grid-cols-4 gap-1 rounded-[15px] bg-surface-sunken p-1"
           : "flex flex-wrap gap-1.5",
       )}
     >
@@ -474,7 +502,7 @@ function Choice({
       className={cn(
         "font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         segmented
-          ? "w-full rounded-[11px] px-1 py-2.5 text-[12px]"
+          ? "nook-segmented-choice w-full rounded-[11px] px-1 py-2.5 text-[12px]"
           : "rounded-full px-3.5 py-2 text-[13px]",
         active
           ? "bg-foreground text-card shadow-button"
@@ -501,7 +529,7 @@ function BudgetRange({
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-stretch overflow-hidden rounded-[14px] bg-input-muted shadow-input focus-within:bg-card focus-within:shadow-input-focus">
-      <label className="flex min-w-0 flex-col px-3.5 py-2">
+      <label className="nook-budget-side flex min-w-0 flex-col px-3.5 py-2">
         <span className="text-[9px] font-medium tracking-[0.04em] text-muted-foreground">
           from
         </span>
@@ -524,7 +552,7 @@ function BudgetRange({
         </span>
       </label>
       <span aria-hidden className="my-2.5 w-px bg-border" />
-      <label className="flex min-w-0 flex-col px-3.5 py-2">
+      <label className="nook-budget-side flex min-w-0 flex-col px-3.5 py-2">
         <span className="text-[9px] font-medium tracking-[0.04em] text-muted-foreground">
           up to
         </span>

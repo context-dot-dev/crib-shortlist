@@ -2,6 +2,7 @@ import type {
   ApartmentCard,
   Preferences,
 } from "../../shared/search-contract";
+import { CITY_CONFIG, type CityId } from "../../shared/cities";
 import type {
   ExtractedApartment,
   ListingSource,
@@ -17,6 +18,7 @@ export function createApartmentCard(
   const cleanImages = cleanImageUrls(images).slice(0, 10);
   const availability = formatAvailability(extracted.availability);
   return {
+    city: preferences.city,
     name: extracted.name ?? source.title,
     url: source.url,
     provider,
@@ -93,29 +95,8 @@ export function matchesBedrooms(
   return actual === Number(requested);
 }
 
-export function inferNeighborhood(text: string) {
-  const neighborhoods = [
-    "Mission Bay",
-    "Mission",
-    "SoMa",
-    "South of Market",
-    "North Beach",
-    "Nob Hill",
-    "Russian Hill",
-    "Pacific Heights",
-    "Marina",
-    "Hayes Valley",
-    "Lower Haight",
-    "Duboce Triangle",
-    "Noe Valley",
-    "Castro",
-    "Dogpatch",
-    "Potrero Hill",
-    "Inner Sunset",
-    "Outer Sunset",
-    "Richmond",
-    "Tenderloin",
-  ];
+export function inferNeighborhood(text: string, city: CityId = "sf") {
+  const neighborhoods = CITY_CONFIG[city].neighborhoods;
   return (
     neighborhoods.find((neighborhood) =>
       text.toLowerCase().includes(neighborhood.toLowerCase()),

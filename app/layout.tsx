@@ -27,21 +27,21 @@ function resolveSiteUrl(): string {
 
 export const metadata: Metadata = {
   metadataBase: new URL(resolveSiteUrl()),
-  title: "criblist · sf rentals",
+  title: "criblist · sf + nyc rentals",
   description:
-    "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
+    "criblist turns live san francisco and new york city listings into a clean deck you can swipe, save, and act on.",
   openGraph: {
-    title: "criblist · sf rentals",
+    title: "criblist · sf + nyc rentals",
     description:
-      "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
+      "criblist turns live san francisco and new york city listings into a clean deck you can swipe, save, and act on.",
     siteName: "criblist",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "criblist · sf rentals",
+    title: "criblist · sf + nyc rentals",
     description:
-      "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
+      "criblist turns live san francisco and new york city listings into a clean deck you can swipe, save, and act on.",
   },
   icons: {
     icon: [
@@ -65,6 +65,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://images.cdn.appfolio.com" />
         <link rel="dns-prefetch" href="https://images.cdn.appfolio.com" />
         <link rel="preconnect" href="https://www.rentalsinsf.com" />
+        <link rel="preconnect" href="https://nooklyn.com" />
       </head>
       <body>{children}</body>
       {/* Privacy-friendly analytics by Plausible */}

@@ -1,8 +1,9 @@
 const baseUrl = process.env.CRIBLIST_BASE_URL ?? "http://localhost:3000";
-const lanes = ["fast", "craigslist", "extract"];
+const lanes = ["all", "fast", "craigslist", "extract"];
 const profiles = [
   {
     name: "studio-value",
+    city: "sf",
     budgetMin: 1_500,
     budgetMax: 3_000,
     bedrooms: "studio",
@@ -17,6 +18,7 @@ const profiles = [
   },
   {
     name: "one-bed-default",
+    city: "sf",
     budgetMin: 1_800,
     budgetMax: 3_500,
     bedrooms: "1",
@@ -31,6 +33,7 @@ const profiles = [
   },
   {
     name: "one-bed-market",
+    city: "sf",
     budgetMin: 2_500,
     budgetMax: 4_500,
     bedrooms: "1",
@@ -45,6 +48,7 @@ const profiles = [
   },
   {
     name: "two-bed",
+    city: "sf",
     budgetMin: 3_000,
     budgetMax: 6_000,
     bedrooms: "2",
@@ -59,6 +63,7 @@ const profiles = [
   },
   {
     name: "three-plus",
+    city: "sf",
     budgetMin: 4_000,
     budgetMax: 10_000,
     bedrooms: "3+",
@@ -73,6 +78,7 @@ const profiles = [
   },
   {
     name: "strict-one-bed",
+    city: "sf",
     budgetMin: 2_500,
     budgetMax: 4_500,
     bedrooms: "1",
@@ -85,12 +91,75 @@ const profiles = [
     entireUnit: true,
     minSquareFeet: 500,
   },
+  {
+    name: "nyc-studio",
+    city: "nyc",
+    budgetMin: 2_500,
+    budgetMax: 4_500,
+    bedrooms: "studio",
+    bathroomsMin: 1,
+    neighborhoods: [],
+    moveIn: "30 days",
+    laundry: "any",
+    dishwasher: false,
+    pets: false,
+    entireUnit: true,
+    minSquareFeet: 0,
+  },
+  {
+    name: "nyc-one-bed",
+    city: "nyc",
+    budgetMin: 3_000,
+    budgetMax: 5_000,
+    bedrooms: "1",
+    bathroomsMin: 1,
+    neighborhoods: [],
+    moveIn: "30 days",
+    laundry: "any",
+    dishwasher: false,
+    pets: false,
+    entireUnit: true,
+    minSquareFeet: 0,
+  },
+  {
+    name: "nyc-two-bed",
+    city: "nyc",
+    budgetMin: 4_000,
+    budgetMax: 7_000,
+    bedrooms: "2",
+    bathroomsMin: 1,
+    neighborhoods: [],
+    moveIn: "60 days",
+    laundry: "any",
+    dishwasher: false,
+    pets: false,
+    entireUnit: true,
+    minSquareFeet: 0,
+  },
+  {
+    name: "nyc-neighborhoods",
+    city: "nyc",
+    budgetMin: 3_000,
+    budgetMax: 5_500,
+    bedrooms: "1",
+    bathroomsMin: 1,
+    neighborhoods: ["Williamsburg", "Long Island City", "Astoria"],
+    moveIn: "30 days",
+    laundry: "any",
+    dishwasher: false,
+    pets: false,
+    entireUnit: true,
+    minSquareFeet: 0,
+  },
 ];
 
-const results = await Promise.all(
-  profiles.flatMap((profile) =>
-    lanes.map((lane) => runLane(profile, lane)),
-  ),
+const jobs = profiles.flatMap((profile) =>
+  lanes.map((lane) => ({ profile, lane })),
+);
+const results = await mapWithConcurrency(
+  jobs,
+  4,
+  ({ profile, lane }) => runLane(profile, lane),
 );
 
 const summaries = profiles.map((profile) => {
@@ -173,4 +242,17 @@ function providerCounts(apartments) {
     }),
     {},
   );
+}
+
+async function mapWithConcurrency(items, concurrency, operation) {
+  const groups = Array.from(
+    { length: Math.ceil(items.length / concurrency) },
+    (_, index) =>
+      items.slice(index * concurrency, (index + 1) * concurrency),
+  );
+  const results = [];
+  for (const group of groups) {
+    results.push(...(await Promise.all(group.map(operation))));
+  }
+  return results;
 }

@@ -38,6 +38,7 @@ import {
   type ApartmentCard,
   type Decision,
 } from "./model";
+import { CITY_CONFIG } from "../../../shared/cities";
 
 const SWIPE_THRESHOLD = 110;
 const FLING_VELOCITY = 600;
@@ -552,7 +553,7 @@ function PhotoIdentity({ apartment }: { apartment: ApartmentCard }) {
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-5 p-4 text-white">
       <div className="min-w-0 pb-0.5">
         <p className="truncate text-[11px] font-medium text-white/75">
-          {apartment.neighborhood ?? "san francisco"}
+          {apartment.neighborhood ?? CITY_CONFIG[apartment.city].label}
         </p>
         <h2 className="mt-1 line-clamp-2 max-w-[290px] text-[22px] font-medium leading-[1.05] tracking-[-0.65px] drop-shadow-sm">
           {apartment.name}

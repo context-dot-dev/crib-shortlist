@@ -1,6 +1,6 @@
 # Criblist
 
-Criblist turns live San Francisco rental inventory into a small, preference-matched set of apartment choices.
+Criblist turns live San Francisco and New York City rental inventory into a small, preference-matched set of apartment choices.
 
 ## Language
 

@@ -36,6 +36,10 @@ const globalCache = globalThis as typeof globalThis & {
       candidates: CraigslistCandidate[];
     }
   >;
+  criblistCraigslistLivenessCache?: Map<
+    string,
+    { expiresAt: number; state: CraigslistListingState }
+  >;
 };
 const craigslistDeckCache =
   globalCache.criblistCraigslistDeckCache ?? new Map();
@@ -46,6 +50,9 @@ const craigslistSearchCache: Map<
 > =
   globalCache.criblistCraigslistSearchCache ?? new Map();
 globalCache.criblistCraigslistSearchCache = craigslistSearchCache;
+const craigslistLivenessCache =
+  globalCache.criblistCraigslistLivenessCache ?? new Map();
+globalCache.criblistCraigslistLivenessCache = craigslistLivenessCache;
 
 type CraigslistCandidate = {
   url: string;
@@ -53,6 +60,8 @@ type CraigslistCandidate = {
   price: number;
   location: string;
 };
+
+type CraigslistListingState = "live" | "removed" | "unverified";
 
 // Craigslist keeps removed postings online as HTTP 200 pages, so the only
 // reliable liveness signal is the removal notice. The four states are:
@@ -66,17 +75,17 @@ export function isRemovedCraigslistPosting(text: string) {
 
 export async function removedCraigslistListingUrls(
   urls: string[],
-  apiKey: string,
 ) {
-  const removalChecks = await mapWithConcurrency(urls, 5, async (url) => {
-    try {
-      const snapshot = await fetchListingSnapshot(url, apiKey);
-      return isRemovedCraigslistPosting(snapshot.markdown) ? url : null;
-    } catch {
-      return null;
-    }
-  });
-  return removalChecks.filter((url): url is string => url !== null);
+  return (await classifyCraigslistListingUrls(urls)).removedUrls;
+}
+
+export async function classifyCraigslistListingUrls(urls: string[]) {
+  const checks = await mapWithConcurrency(urls, 5, checkCraigslistListing);
+  return {
+    liveUrls: urlsWithState(checks, "live"),
+    removedUrls: urlsWithState(checks, "removed"),
+    unverifiedUrls: urlsWithState(checks, "unverified"),
+  };
 }
 
 export async function discoverCraigslistListings(
@@ -84,7 +93,8 @@ export async function discoverCraigslistListings(
   apiKey: string,
 ) {
   const cacheKey = JSON.stringify({
-    version: 7,
+    version: 8,
+    city: preferences.city,
     budgetMin: preferences.budgetMin,
     budgetMax: preferences.budgetMax,
     bedrooms: preferences.bedrooms,
@@ -133,7 +143,7 @@ async function discoverSearchCandidates(
 
   const response = await requestContext(
     htmlPath(searchUrl, {
-      maxAgeMs: 2 * 60 * 1000,
+      maxAgeMs: 10 * 60 * 1000,
       waitForMs: 0,
       timeoutMs: 25_000,
     }),
@@ -151,7 +161,9 @@ async function discoverSearchCandidates(
 
 export function buildSearchUrl(preferences: Preferences) {
   const searchUrl = new URL(
-    "https://www.craigslist.org/search/subarea/sfc",
+    preferences.city === "nyc"
+      ? "https://www.craigslist.org/search/area/newyork"
+      : "https://www.craigslist.org/search/subarea/sfc",
   );
   searchUrl.searchParams.set("cat", "apa");
   searchUrl.searchParams.set("availabilityMode", "0");
@@ -240,14 +252,46 @@ async function fetchListingSnapshot(
       htmlPath(url, {
         maxAgeMs: 5 * 60 * 1000,
         waitForMs: 0,
-        timeoutMs: 25_000,
+        timeoutMs: 10_000,
       }),
       apiKey,
-      { timeoutMs: 28_000 },
+      { timeoutMs: 12_000, maxAttempts: 1 },
     );
     const snapshot = HtmlResponseSchema.parse(response);
     return snapshotFromHtml(url, snapshot.html);
   }
+}
+
+async function checkCraigslistListing(url: string) {
+  const cached = craigslistLivenessCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { url, state: cached.state };
+  }
+
+  let state: CraigslistListingState;
+  try {
+    const html = await fetchPublicHtml(url, 2_500, 60_000);
+    state = isRemovedCraigslistPosting(textFromHtml(html))
+      ? "removed"
+      : "live";
+  } catch {
+    state = "unverified";
+  }
+  craigslistLivenessCache.set(url, {
+    state,
+    expiresAt:
+      Date.now() + (state === "unverified" ? 60_000 : 5 * 60_000),
+  });
+  return { url, state };
+}
+
+function urlsWithState(
+  checks: Array<{ url: string; state: CraigslistListingState }>,
+  state: CraigslistListingState,
+) {
+  return checks
+    .filter((check) => check.state === state)
+    .map((check) => check.url);
 }
 
 export function snapshotFromHtml(
@@ -383,7 +427,7 @@ export function cardFromSnapshot(
   const address =
     formatPostalAddress(addressData) ??
     (snapshot.markdown.match(/^## (.+)$/m)?.[1] ?? null);
-  if (!address || !/\bsan francisco\b/i.test(address)) return null;
+  if (!address || !isAddressInSearchCity(address, preferences)) return null;
   const bathroomsValue = listingData?.numberOfBathroomsTotal;
   const bathrooms =
     typeof bathroomsValue === "number"
@@ -404,7 +448,10 @@ export function cardFromSnapshot(
   const extracted: ExtractedApartment = {
     name,
     address,
-    neighborhood: inferNeighborhood(`${name} ${sourceDescription}`),
+    neighborhood: inferNeighborhood(
+      `${address} ${name} ${sourceDescription}`,
+      preferences.city,
+    ),
     price,
     bedrooms,
     bathrooms: Number.isFinite(bathrooms) ? bathrooms : null,
@@ -445,6 +492,18 @@ export function cardFromSnapshot(
       ...card.catches,
     ].slice(0, 4),
   };
+}
+
+function isAddressInSearchCity(
+  address: string,
+  preferences: Preferences,
+) {
+  if (preferences.city === "sf") {
+    return /\bsan francisco\b/i.test(address);
+  }
+  return /\b(?:new york|brooklyn|queens|bronx|manhattan|staten island|NY\s+\d{5})\b/i.test(
+    address,
+  );
 }
 
 function inferLaundry(text: string): ExtractedApartment["laundry"] {

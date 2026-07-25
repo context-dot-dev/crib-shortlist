@@ -32,6 +32,7 @@ import {
   formatLaundry,
   type ApartmentCard,
 } from "./model";
+import { CITY_CONFIG } from "../../../shared/cities";
 
 export function DetailDrawer({
   apartment,
@@ -122,7 +123,8 @@ export function DetailDrawer({
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-[12px] font-medium text-secondary">
-                      {apartment.neighborhood ?? "san francisco"}
+                      {apartment.neighborhood ??
+                        CITY_CONFIG[apartment.city].label}
                     </p>
                     <h2 className="mt-0.5 text-[23px] font-medium leading-[1.12] tracking-[-0.6px]">
                       {apartment.name}
@@ -458,15 +460,22 @@ export function SavedPanel({
   }, [onClose]);
 
   const share = async () => {
+    const savedCities = [
+      ...new Set(saved.map((apartment) => apartment.city)),
+    ];
+    const locationLabel =
+      savedCities.length === 1
+        ? CITY_CONFIG[savedCities[0]].shortLabel
+        : "sf + nyc";
     const text =
       saved.length > 0
-        ? `my criblist sf shortlist:\n${saved
+        ? `my criblist ${locationLabel} shortlist:\n${saved
             .map((apartment) => `• ${apartment.name} - ${apartment.url}`)
             .join("\n")}`
-        : "my criblist sf shortlist is empty.";
+        : "my criblist shortlist is empty.";
     if (navigator.share) {
       try {
-        await navigator.share({ title: "my criblist sf shortlist", text });
+        await navigator.share({ title: "my criblist shortlist", text });
         return;
       } catch (shareError) {
         if (shareError instanceof DOMException && shareError.name === "AbortError") {

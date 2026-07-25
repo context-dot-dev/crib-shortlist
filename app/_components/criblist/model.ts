@@ -2,6 +2,10 @@ import type {
   ApartmentCard,
   Preferences,
 } from "../../../shared/search-contract";
+import {
+  CITY_CONFIG,
+  type CityId,
+} from "../../../shared/cities";
 
 export type {
   ApartmentCard,
@@ -17,24 +21,8 @@ export type Decision = {
 
 export type Stage = "setup" | "searching" | "deck" | "done";
 
-export const NEIGHBORHOODS = [
-  "Mission",
-  "Hayes Valley",
-  "Lower Haight",
-  "Duboce Triangle",
-  "Castro",
-  "Noe Valley",
-  "SoMa",
-  "Dogpatch",
-  "Potrero Hill",
-  "North Beach",
-  "Russian Hill",
-  "Nob Hill",
-  "Pacific Heights",
-  "Marina",
-];
-
 export const DEFAULT_PREFERENCES: Preferences = {
+  city: "sf",
   budgetMin: 1800,
   budgetMax: 3500,
   bedrooms: "1",
@@ -80,5 +68,15 @@ export function formatSearchLabel(preferences: Preferences) {
       : preferences.bedrooms === "3+"
         ? "3+ beds"
         : `${preferences.bedrooms} bed`;
-  return `${bedroom} · ${MONEY.format(preferences.budgetMin)}–${MONEY.format(preferences.budgetMax)}`;
+  return `${CITY_CONFIG[preferences.city].shortLabel} · ${bedroom} · ${MONEY.format(preferences.budgetMin)}–${MONEY.format(preferences.budgetMax)}`;
+}
+
+export function cityPreferences(city: CityId): Partial<Preferences> {
+  const budget = CITY_CONFIG[city].defaultBudget;
+  return {
+    city,
+    neighborhoods: [],
+    budgetMin: budget.minimum,
+    budgetMax: budget.maximum,
+  };
 }

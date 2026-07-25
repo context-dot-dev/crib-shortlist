@@ -12,30 +12,43 @@ import {
 } from "@/_components/ui/icons";
 import { cn } from "@/_lib/utils";
 import type { ApartmentCard } from "./model";
+import {
+  CITY_CONFIG,
+  type CityId,
+} from "../../../shared/cities";
+import { ProviderSources } from "./provider-sources";
 
-function Wordmark({ className }: { className?: string }) {
+function Wordmark({
+  city,
+  className,
+}: {
+  city: CityId;
+  className?: string;
+}) {
   return (
     <span className={cn("inline-flex items-baseline gap-1.5", className)}>
       <span className="font-semibold tracking-[-0.5px]">criblist</span>
       <span aria-hidden className="translate-y-[1px] text-[0.85em]">
-        🌉
+        {CITY_CONFIG[city].emoji}
       </span>
     </span>
   );
 }
 
 export function Header({
+  city,
   saved,
   onOpenSaved,
   onHome,
 }: {
+  city: CityId;
   saved: ApartmentCard[];
   onOpenSaved: () => void;
   onHome: () => void;
 }) {
   const previews = saved.slice(0, 3);
   return (
-    <header className="relative flex h-[88px] w-full items-center justify-center pt-4">
+    <header className="nook-header relative flex h-[88px] w-full items-center justify-center pt-4">
       <div className="absolute inset-y-0 left-0 flex items-center pt-4">
         <a
           href="https://github.com/context-dot-dev/crib-shortlist"
@@ -56,7 +69,7 @@ export function Header({
           className="flex h-9 items-center outline-none transition-opacity hover:opacity-70"
           aria-label="criblist home"
         >
-          <Wordmark className="text-[19px]" />
+          <Wordmark city={city} className="text-[19px]" />
         </button>
 
         <span aria-hidden className="h-4 w-px bg-border" />
@@ -110,26 +123,17 @@ export function Header({
           </motion.span>
         </button>
       </div>
+
+      <div className="absolute inset-y-0 right-0 hidden items-center lg:flex">
+        <ProviderSources city={city} placement="header" />
+      </div>
     </header>
   );
 }
 
 export function Footer() {
   return (
-    <footer className="flex flex-col items-center gap-5 py-10 text-center">
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-8">
-        <span className="text-[12px] font-medium text-muted-foreground">
-          real listings, live across san francisco
-        </span>
-        <a
-          href="https://context.dev"
-          target="_blank"
-          rel="noreferrer"
-          className="text-[12px] font-medium text-secondary underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
-        >
-          powered by context.dev
-        </a>
-      </div>
+    <footer className="nook-footer flex flex-col items-center gap-5 py-10 text-center">
       <a
         href="https://context.dev"
         target="_blank"

@@ -1,5 +1,5 @@
 const CONTEXT_API_ROOT = "https://api.context.dev/v1";
-const CONTEXT_CONCURRENCY = 5;
+const CONTEXT_CONCURRENCY = 2;
 
 const globalContextQueue = globalThis as typeof globalThis & {
   criblistContextActiveRequests?: number;
@@ -124,4 +124,22 @@ export function htmlPath(
     country: "us",
   });
   return `/web/scrape/html?${params.toString()}`;
+}
+
+export function markdownPath(
+  url: string,
+  options: {
+    maxAgeMs: number;
+    waitForMs: number;
+    timeoutMs: number;
+  },
+) {
+  const params = new URLSearchParams({
+    url,
+    maxAgeMs: String(options.maxAgeMs),
+    waitForMs: String(options.waitForMs),
+    timeoutMS: String(options.timeoutMs),
+    country: "us",
+  });
+  return `/web/scrape/markdown?${params.toString()}`;
 }

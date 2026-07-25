@@ -42,8 +42,17 @@ import {
   SOURCE_IDS,
 } from "../shared/providers";
 import type { ContextListing } from "../server/search/schemas";
+import { discoverNooklynListings } from "../server/search/nooklyn";
+import { extractBrodskyListings } from "../server/search/brodsky";
+import { extractStonehengeListings } from "../server/search/stonehenge";
+import {
+  buildStreetEasySearchUrl,
+  extractStreetEasyCandidates,
+  isRemovedStreetEasyListing,
+} from "../server/search/streeteasy";
 
 const preferences: Preferences = {
+  city: "sf",
   budgetMin: 1_800,
   budgetMax: 3_500,
   bedrooms: "1",
@@ -110,6 +119,7 @@ test("decodes browser storage keys independently", () => {
   });
 
   assert.deepEqual(restored.saved, []);
+  assert.equal(restored.preferences.city, "sf");
   assert.equal(restored.preferences.bedrooms, "2");
   assert.equal(restored.preferences.budgetMin, 1_800);
   assert.equal(restored.session, null);
@@ -213,6 +223,17 @@ test("uses exact Craigslist bedroom filters", () => {
   assert.equal(twoBedUrl.searchParams.get("min_bedrooms"), "2");
   assert.equal(twoBedUrl.searchParams.get("max_bedrooms"), "2");
   assert.equal(studioUrl.searchParams.has("hub"), false);
+});
+
+test("uses the canonical New York Craigslist area search", () => {
+  const searchUrl = new URL(
+    buildSearchUrl({
+      ...preferences,
+      city: "nyc",
+    }),
+  );
+  assert.equal(searchUrl.pathname, "/search/area/newyork");
+  assert.equal(searchUrl.searchParams.get("cat"), "apa");
 });
 
 test("accepts Craigslist House JSON-LD and builds a complete card", () => {
@@ -353,7 +374,6 @@ test("reports which Craigslist listings now show a removal notice", async () => 
           "https://removal-check.invalid/flagged-post",
           "https://removal-check.invalid/live-post",
         ],
-        "test-key",
       ),
       ["https://removal-check.invalid/flagged-post"],
     );
@@ -389,13 +409,46 @@ test("drops flagged Craigslist cards from cached Apartment Decks", async () => {
       [flagged, live],
       preferences,
       [],
-      "test-key",
     );
     assert.deepEqual(
       verified.deck.apartments.map((apartment) => apartment.url),
       [live.url],
     );
     assert.deepEqual(verified.removedUrls, [flagged.url]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("skips unverified Craigslist cards without marking them removed", async () => {
+  const craigslist = apartmentCard({
+    name: "Unverified craigslist one bedroom",
+    url: "https://deck-verify.invalid/unreachable-post",
+    provider: "craigslist.org",
+    address: "300 Mission Street, San Francisco, CA",
+  });
+  const independent = apartmentCard({
+    name: "Reachable independent one bedroom",
+    url: "https://independent.invalid/live-post",
+    provider: "independent.invalid",
+    address: "400 Mission Street, San Francisco, CA",
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("network unavailable");
+  };
+
+  try {
+    const verified = await verifiedApartmentDeck(
+      [craigslist, independent],
+      preferences,
+      [],
+    );
+    assert.deepEqual(
+      verified.deck.apartments.map((apartment) => apartment.url),
+      [independent.url],
+    );
+    assert.deepEqual(verified.removedUrls, []);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -465,7 +518,7 @@ test("enriches Brick + Timber Extract candidates from detail markup", () => {
       instructions: "",
       caveat:
         "Live Brick + Timber inventory. Verify availability before applying.",
-      requireSanFranciscoAddress: true,
+      requiredCity: "sf",
     },
     candidate,
     html,
@@ -560,7 +613,7 @@ test("enriches a Context candidate with detail-page JSON-LD", () => {
       inventoryUrl: "https://www.rentalsinc.com/markets/san-francisco",
       instructions: "",
       caveat: "Verify availability.",
-      requireSanFranciscoAddress: true,
+      requiredCity: "sf",
     },
     candidate,
     `
@@ -630,8 +683,198 @@ test("parses Rentals in SF inventory and detail pages", () => {
   assert.equal(card.images.length, 1);
 });
 
+test("parses Brodsky apartment inventory from the public page payload", () => {
+  const apartment = {
+    url: "/rentals/gowanus/499-president/499-president-apartment-336",
+    propertyName: "499 President",
+    apartmentName: "336",
+    effectiveMinRent: 3915,
+    minimumRent: 4350,
+    beds: 1,
+    baths: 1,
+    neighborhoodName: "Gowanus",
+    zipCode: "11215",
+    availableDate: "2026-08-14T00:00:00.000Z",
+    thumbnail: {
+      url: "https://images.example.com/brodsky.jpg",
+    },
+    amenities: ["Dishwasher"],
+    unitDescription: "Bright one bedroom.",
+  };
+  const payload = `2a:{"initialApartments":${JSON.stringify([apartment])}}`;
+  const html = `<script>self.__next_f.push(${JSON.stringify([1, payload])})</script>`;
+
+  assert.deepEqual(extractBrodskyListings(html), [
+    {
+      name: "499 President · 336",
+      url: "https://www.brodsky.com/rentals/gowanus/499-president/499-president-apartment-336",
+      image: "https://images.example.com/brodsky.jpg",
+      price: 3915,
+      bedrooms: 1,
+      bathrooms: 1,
+      neighborhood: "Gowanus",
+      address: "499 President, New York, NY 11215",
+      availability: "2026-08-14T00:00:00.000Z",
+      description: "Bright one bedroom.",
+      amenities: ["Dishwasher"],
+    },
+  ]);
+});
+
+test("parses and deduplicates Stonehenge inventory cards", () => {
+  const card = `
+    <div role="listitem" class="apt-card-collection-item">
+      <img src="https://images.example.com/stonehenge.webp">
+      <a title="1 QPS - 010H" href="/apartments/oneqps-010h"></a>
+      <div fs-cmsfilter-field="Neighborhood">Long Island City</div>
+      <h4 fs-cmsfilter-field="building">42-20 24th Street</h4>
+      <div fs-cmsfilter-field="Bedroom">1 Bedroom</div>
+      <div fs-cmsfilter-field="Bathroom">1</div>
+      <h4 fs-cmsfilter-field="Price">4877</h4>
+    </div>
+  `;
+
+  assert.deepEqual(extractStonehengeListings(`${card}${card}`), [
+    {
+      name: "1 QPS - 010H",
+      url: "https://www.stonehengenyc.com/apartments/oneqps-010h",
+      image: "https://images.example.com/stonehenge.webp",
+      price: 4877,
+      bedrooms: 1,
+      bathrooms: 1,
+      neighborhood: "Long Island City",
+      address: "42-20 24th Street, New York, NY",
+      squareFeet: null,
+    },
+  ]);
+});
+
+test("builds and parses a filtered StreetEasy search", () => {
+  const searchUrl = buildStreetEasySearchUrl({
+    ...preferences,
+    city: "nyc",
+    budgetMin: 1_000,
+    budgetMax: 2_000,
+  });
+  assert.equal(
+    searchUrl,
+    "https://streeteasy.com/1-bedroom-apartments-for-rent/nyc/price:1000-2000",
+  );
+
+  assert.deepEqual(
+    extractStreetEasyCandidates(`
+- Rental unit in Bensonhurst
+
+ [2030 81st Street #2F](https://streeteasy.com/building/2030-81-street-brooklyn/2f?featured=1)
+
+ Save
+
+ $1,900
+
+ base rent
+
+ - 1 bed
+ - 1 bath
+ - 725 ft²
+
+- Rental unit in Bensonhurst
+
+ [2030 81st Street #2F](https://streeteasy.com/building/2030-81-street-brooklyn/2f)
+
+ $1,900
+
+ - 1 bed
+ - 1 bath
+ - 725 ft²
+    `),
+    [
+      {
+        name: "2030 81st Street #2F",
+        url: "https://streeteasy.com/building/2030-81-street-brooklyn/2f",
+        propertyType: "Rental unit",
+        neighborhood: "Bensonhurst",
+        price: 1900,
+        bedrooms: 1,
+        bathrooms: 1,
+        squareFeet: 725,
+      },
+    ],
+  );
+  assert.equal(
+    isRemovedStreetEasyListing("This listing is no longer available."),
+    true,
+  );
+  assert.equal(isRemovedStreetEasyListing("Available now"), false);
+});
+
+test("builds a photographed Nooklyn card from its public inventory feed", async () => {
+  const originalFetch = globalThis.fetch;
+  const listing = {
+    id: 123,
+    price: 350000,
+    bedrooms: 1,
+    bathrooms: 1,
+    neighborhood: { name: "Williamsburg" },
+    rental: true,
+    residential: true,
+    address: "10 Berry St, Brooklyn, NY 11249, USA",
+    short_address: "10 Berry St - Unit: 2A",
+    listing_url: "/listings/10-berry-st-2a",
+    square_feet: 700,
+    description: "Sunny apartment with a dishwasher.",
+    amenities: "Dishwasher\r\nLaundry in building",
+    pets: "All Pets Allowed",
+    no_fee: true,
+    date_available: "2026-08-01",
+    image: {
+      wide: "https://images.example.com/nooklyn-cover.jpg",
+    },
+  };
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("listings.search")) {
+      return Response.json({
+        listings: [listing],
+        page_count: 1,
+      });
+    }
+    if (url.includes("listings.list")) {
+      return Response.json({ listings: [listing] });
+    }
+    if (url.includes("listings.images")) {
+      return Response.json({
+        images: [
+          { wide: "https://images.example.com/nooklyn-one.jpg" },
+          { wide: "https://images.example.com/nooklyn-two.jpg" },
+        ],
+      });
+    }
+    return new Response(null, { status: 404 });
+  };
+
+  try {
+    const cards = await discoverNooklynListings(
+      {
+        ...preferences,
+        city: "nyc",
+        budgetMin: 3_000,
+        budgetMax: 4_000,
+      },
+      "",
+    );
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].city, "nyc");
+    assert.equal(cards[0].provider, "nooklyn.com");
+    assert.equal(cards[0].neighborhood, "Williamsburg");
+    assert.equal(cards[0].images.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("does not silently relax explicit must-have filters", () => {
   const apartment: ApartmentCard = {
+    city: "sf",
     name: "Incomplete one bedroom",
     url: "https://example.com/listing",
     provider: "example.com",
@@ -734,6 +977,7 @@ test("fills a deck after source diversity is exhausted", () => {
 
 test("recalculates cached cards for the current preferences", () => {
   const apartment: ApartmentCard = {
+    city: "sf",
     name: "Cached one bedroom",
     url: "https://example.com/cached-listing",
     provider: "example.com",
@@ -864,18 +1108,27 @@ test("maps client search lanes to persistent inventory sources", () => {
     new Set(LISTING_PROVIDERS.map((provider) => provider.sourceId)),
     new Set(SOURCE_IDS),
   );
-  assert.deepEqual(selectedSources("fast"), [
+  assert.deepEqual(selectedSources("fast", "sf"), [
     "rentsfnow",
     "mosser",
     "rentalsinsf",
   ]);
-  assert.deepEqual(selectedSources("craigslist"), ["craigslist"]);
-  assert.deepEqual(selectedSources("extract"), [
+  assert.deepEqual(selectedSources("craigslist", "sf"), ["craigslist"]);
+  assert.deepEqual(selectedSources("extract", "sf"), [
     "brick-timber",
     "jwavro",
     "rentalsinc",
     "landmark",
     "relisto",
+  ]);
+  assert.deepEqual(selectedSources("fast", "nyc"), ["nooklyn"]);
+  assert.deepEqual(selectedSources("craigslist", "nyc"), [
+    "nyc-craigslist",
+  ]);
+  assert.deepEqual(selectedSources("extract", "nyc"), [
+    "streeteasy",
+    "brodsky",
+    "stonehenge",
   ]);
   assert.equal(isSearchSource("independent"), true);
   assert.equal(isSearchSource("unknown"), false);
@@ -952,6 +1205,7 @@ function apartmentCard(
   patch: Partial<ApartmentCard> = {},
 ): ApartmentCard {
   return {
+    city: "sf",
     name: "One bedroom",
     url: "https://example.com/listing",
     provider: "example.com",

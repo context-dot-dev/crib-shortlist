@@ -23,7 +23,7 @@ const CONFIG: ExtractedInventoryConfig = {
   instructions: "",
   caveat:
     "Live Rentals in SF inventory. Verify availability before applying.",
-  requireSanFranciscoAddress: true,
+  requiredCity: "sf",
 };
 
 const globalCache = globalThis as typeof globalThis & {
@@ -127,7 +127,7 @@ export function rentalsInSfCardFromHtml(
     price,
     bedrooms,
     bathrooms,
-    neighborhood: inferNeighborhood(text),
+    neighborhood: inferNeighborhood(text, "sf"),
     address: `${name}, San Francisco, CA`,
     squareFeet: numberFromMatch(
       text.match(/\b([\d,]+)\s*(?:sq\.?\s*ft|sqft|square feet)\b/i)?.[1],

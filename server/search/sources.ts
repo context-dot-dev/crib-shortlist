@@ -5,14 +5,18 @@ import {
   type SearchSource,
   type SourceId,
 } from "../../shared/providers";
+import { discoverBrodskyListings } from "./brodsky";
 import { discoverCraigslistListings } from "./craigslist";
 import {
   discoverExtractedInventory,
   type ExtractedInventoryConfig,
 } from "./extracted-inventory";
 import { discoverMosserListings } from "./mosser";
+import { discoverNooklynListings } from "./nooklyn";
 import { discoverRentalsInSfListings } from "./rentalsinsf";
 import { discoverRentSfNowListings } from "./rentsfnow";
+import { discoverStonehengeListings } from "./stonehenge";
+import { discoverStreetEasyListings } from "./streeteasy";
 import type {
   ApartmentCard,
   Preferences,
@@ -38,6 +42,7 @@ const extractedInventoryAdapter = (
     discoverExtractedInventory(config, preferences, apiKey);
 
 const SOURCE_ADAPTERS = {
+  streeteasy: discoverStreetEasyListings,
   "brick-timber": extractedInventoryAdapter({
     id: "brick-timber",
     inventoryUrl: "https://rentbt.com/listings/",
@@ -45,7 +50,7 @@ const SOURCE_ADAPTERS = {
       "Extract every currently available San Francisco apartment, up to 50. Use the exact public detail-page URL, numeric monthly rent, bedrooms, bathrooms, address, square feet and all visible image URLs. Exclude navigation, unavailable units, rooms, and properties outside San Francisco. Do not invent missing values.",
     caveat:
       "Live Brick + Timber inventory. Verify availability before applying.",
-    requireSanFranciscoAddress: true,
+    requiredCity: "sf",
   }),
   rentsfnow: discoverRentSfNowListings,
   mosser: discoverMosserListings,
@@ -66,7 +71,7 @@ const SOURCE_ADAPTERS = {
       "Extract every currently available residential apartment in San Francisco, up to 50. Use the exact public detail-page URL, numeric monthly rent, bedrooms, bathrooms, address and all visible image URLs. Exclude rooms, SROs, navigation, and properties outside San Francisco. Do not invent missing values.",
     caveat:
       "Live Rentals Inc. inventory. Verify availability before applying.",
-    requireSanFranciscoAddress: true,
+    requiredCity: "sf",
   }),
   rentalsinsf: discoverRentalsInSfListings,
   landmark: extractedInventoryAdapter({
@@ -77,7 +82,7 @@ const SOURCE_ADAPTERS = {
     caveat:
       "Live Landmark SF floor-plan inventory. Confirm the exact unit and price before applying.",
     defaultAddress: "573 S Van Ness Ave, San Francisco, CA 94110",
-    requireSanFranciscoAddress: true,
+    requiredCity: "sf",
   }),
   relisto: extractedInventoryAdapter({
     id: "relisto",
@@ -85,8 +90,12 @@ const SOURCE_ADAPTERS = {
     instructions:
       "Extract every currently available whole-apartment rental in San Francisco, up to 50. Use the exact public detail-page URL, numeric monthly rent, bedrooms, bathrooms, address, square feet and all visible image URLs. Exclude rooms, SROs, rented or application-received properties, navigation, and properties outside San Francisco. Do not invent missing values.",
     caveat: "Live ReLISTO inventory. Verify availability before applying.",
-    requireSanFranciscoAddress: true,
+    requiredCity: "sf",
   }),
+  nooklyn: discoverNooklynListings,
+  brodsky: discoverBrodskyListings,
+  stonehenge: discoverStonehengeListings,
+  "nyc-craigslist": discoverCraigslistListings,
 } satisfies Record<SourceId, SourceAdapter>;
 
 export function runSource(
