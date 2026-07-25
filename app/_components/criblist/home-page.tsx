@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { ContextFortune, Footer, Header } from "./chrome";
+import { ContextFortune, Footer, Header, KeyboardHints } from "./chrome";
 import { ApartmentDeck } from "./deck";
 import { DetailDrawer, SavedPanel } from "./panels";
 import { SearchComplete, SearchSetup, Searching } from "./search";
@@ -222,7 +222,7 @@ export function HomePage() {
 
   return (
     <main className="nook-canvas text-foreground">
-      <div className="relative z-10 flex min-h-dvh flex-col px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:px-6 md:px-10">
+      <div className="relative z-10 flex min-h-dvh flex-col px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:px-6 md:min-h-[calc(100dvh-44px)] md:px-10">
         <Header
           saved={saved}
           onOpenSaved={() => setSavedOpen(true)}
@@ -274,8 +274,13 @@ export function HomePage() {
         {showFooter ? <Footer /> : <div className="h-6" />}
       </div>
 
-      <div aria-hidden className="nook-frame-border" />
       <ContextFortune />
+
+      <AnimatePresence>
+        {stage === "deck" && currentApartment ? (
+          <KeyboardHints key="keyboard-hints" />
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {savedOpen ? (

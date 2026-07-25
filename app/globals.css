@@ -163,32 +163,32 @@ body {
 
 .nook-canvas::before {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  border-radius: inherit;
   background-image: url("/grain.png");
   background-size: 240px 180px;
   opacity: 0.55;
   mix-blend-mode: multiply;
 }
 
-/* The matted white frame: a printed-card border that rings the viewport on
-   larger screens. Sits above content, below modals, and never eats clicks. */
-.nook-frame-border {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: none;
-  pointer-events: none;
-  border: 18px solid #fffefe;
-  opacity: 0.97;
-}
-
+/* The matted white frame: on larger screens the page background is the white
+   mat and the canvas floats on it as a rounded card that grows with the
+   content, so the whole page scrolls normally. */
 @media (min-width: 768px) {
-  .nook-frame-border {
-    display: block;
-    border-width: 22px;
+  html:has(.nook-canvas),
+  body:has(.nook-canvas) {
+    background: #fffefe;
+  }
+
+  .nook-canvas {
+    min-height: calc(100dvh - 44px);
+    margin: 22px;
+    border-radius: 28px;
+    /* Hairline ring so the rounded edge reads against the near-white mat. */
+    box-shadow: 0 0 0 1px rgb(63 48 38 / 0.06);
   }
 }
 

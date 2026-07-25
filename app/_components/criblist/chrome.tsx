@@ -1,9 +1,14 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import { FadeImage } from "@/_components/ui/fade-image";
 import { Icon } from "@/_components/ui/icon";
-import { IconHeartFillDuo18 } from "@/_components/ui/icons";
+import {
+  IconArrowLeftFill18,
+  IconArrowRightFill18,
+  IconHeartFillDuo18,
+} from "@/_components/ui/icons";
 import { cn } from "@/_lib/utils";
 import type { ApartmentCard } from "./model";
 
@@ -125,6 +130,53 @@ export function Footer() {
         />
       </a>
     </footer>
+  );
+}
+
+function KeyCap({ wide = false, children }: { wide?: boolean; children: ReactNode }) {
+  return (
+    <kbd
+      className={cn(
+        "grid h-6 min-w-6 place-items-center rounded-[7px] bg-card font-sans text-[10px] font-semibold text-secondary shadow-input",
+        wide && "px-2 tracking-[0.08em]",
+      )}
+    >
+      {children}
+    </kbd>
+  );
+}
+
+/** Desktop-only cheat sheet for the deck's keyboard shortcuts. */
+export function KeyboardHints() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="pointer-events-none fixed bottom-12 left-12 z-20 hidden flex-col items-start gap-2 lg:flex"
+    >
+      <div className="flex items-center gap-2">
+        <KeyCap>
+          <Icon glyph={IconArrowLeftFill18} size={12} />
+        </KeyCap>
+        <span className="text-[12px] font-medium text-secondary">pass</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <KeyCap>
+          <Icon glyph={IconArrowRightFill18} size={12} />
+        </KeyCap>
+        <span className="text-[12px] font-medium text-secondary">
+          add to shortlist
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <KeyCap wide>space</KeyCap>
+        <span className="text-[12px] font-medium text-secondary">
+          open details
+        </span>
+      </div>
+    </motion.div>
   );
 }
 

@@ -178,6 +178,11 @@ export function ApartmentDeck({
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         onDetails();
+      } else if (event.key === " ") {
+        // Skip when a button has focus so Space still activates it.
+        if (target && target.tagName === "BUTTON") return;
+        event.preventDefault();
+        onDetails();
       } else if (event.key === "Backspace") {
         event.preventDefault();
         handleUndo();
