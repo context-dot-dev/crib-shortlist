@@ -223,6 +223,13 @@ export function SearchSetup({
                     checked={preferences.pets}
                     onChange={(pets) => onChange({ pets })}
                   />
+                  <Toggle
+                    label="entire unit only"
+                    hint="no rooms in shared apartments"
+                    checked={preferences.entireUnit}
+                    onChange={(entireUnit) => onChange({ entireUnit })}
+                    className="col-span-2"
+                  />
                 </div>
               </div>
             </motion.div>
@@ -576,12 +583,16 @@ function SelectInput({
 
 function Toggle({
   label,
+  hint,
   checked,
   onChange,
+  className,
 }: {
   label: string;
+  hint?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  className?: string;
 }) {
   return (
     <button
@@ -594,9 +605,22 @@ function Toggle({
         checked
           ? "bg-foreground text-card shadow-button"
           : "bg-surface-sunken text-foreground hover:bg-control-active",
+        className,
       )}
     >
-      <span>{label}</span>
+      <span className="flex min-w-0 items-baseline gap-2 text-left">
+        {label}
+        {hint ? (
+          <span
+            className={cn(
+              "truncate text-[11px] font-normal",
+              checked ? "text-card/70" : "text-secondary",
+            )}
+          >
+            {hint}
+          </span>
+        ) : null}
+      </span>
       <span
         className={cn(
           "grid size-5 place-items-center rounded-full transition-colors",

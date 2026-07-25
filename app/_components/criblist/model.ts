@@ -44,6 +44,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   laundry: "any",
   dishwasher: false,
   pets: false,
+  entireUnit: false,
   minSquareFeet: 0,
 };
 

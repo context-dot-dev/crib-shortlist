@@ -53,6 +53,7 @@ const preferences: Preferences = {
   laundry: "any",
   dishwasher: false,
   pets: false,
+  entireUnit: false,
   minSquareFeet: 0,
 };
 
@@ -667,6 +668,49 @@ test("does not silently relax explicit must-have filters", () => {
 
   assert.equal(deck.apartments.length, 0);
   assert.equal(deck.relaxed, false);
+});
+
+test("filters rooms in shared apartments when entire unit only is on", () => {
+  const sharedListings = [
+    apartmentCard({
+      name: "Sunny bedroom in a 3 bed apartment",
+      url: "https://example.com/shared-1",
+      address: "12 Valencia Street, San Francisco, CA",
+    }),
+    apartmentCard({
+      name: "Mission flat",
+      url: "https://example.com/shared-2",
+      address: "34 Guerrero Street, San Francisco, CA",
+      description: "Roommate wanted to join our lease near Dolores Park.",
+    }),
+    apartmentCard({
+      name: "Furnished room with private bath",
+      url: "https://example.com/shared-3",
+      address: "56 Dolores Street, San Francisco, CA",
+    }),
+  ];
+  const entireUnit = apartmentCard({
+    name: "Charming one bedroom",
+    url: "https://example.com/entire-unit",
+    address: "78 Church Street, San Francisco, CA",
+    description: "Bright 1-bedroom with a spacious living room.",
+  });
+
+  const filtered = buildApartmentDeck(
+    [...sharedListings, entireUnit],
+    { ...preferences, entireUnit: true },
+  );
+  assert.deepEqual(
+    filtered.apartments.map((apartment) => apartment.url),
+    ["https://example.com/entire-unit"],
+  );
+  assert.equal(filtered.relaxed, false);
+
+  const unfiltered = buildApartmentDeck(
+    [...sharedListings, entireUnit],
+    preferences,
+  );
+  assert.equal(unfiltered.apartments.length, 4);
 });
 
 test("fills a deck after source diversity is exhausted", () => {

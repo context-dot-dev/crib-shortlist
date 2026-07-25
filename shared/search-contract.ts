@@ -10,6 +10,9 @@ const PreferenceShape = {
   laundry: z.enum(["any", "in-unit", "in-building"]),
   dishwasher: z.boolean(),
   pets: z.boolean(),
+  // Defaulted so stored preferences and in-flight clients from before this
+  // field existed keep validating.
+  entireUnit: z.boolean().default(false),
   minSquareFeet: z.number().min(0).max(5_000),
 } as const;
 

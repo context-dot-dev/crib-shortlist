@@ -159,6 +159,7 @@ export function inventoryPreferences(
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   };
 }

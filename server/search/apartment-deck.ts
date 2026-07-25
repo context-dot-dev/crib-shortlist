@@ -163,6 +163,12 @@ function passesQualityGate(
   }
   if (preferences.dishwasher && apartment.dishwasher !== true) return false;
   if (preferences.pets && apartment.petsAllowed !== true) return false;
+  if (
+    preferences.entireUnit &&
+    isSharedUnitListing(`${apartment.name}\n${apartment.description ?? ""}`)
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -173,9 +179,33 @@ function hasStrictPreferences(preferences: Preferences) {
     preferences.laundry !== "any" ||
     preferences.dishwasher ||
     preferences.pets ||
+    preferences.entireUnit ||
     preferences.minSquareFeet > 0
   );
 }
+
+/**
+ * Detects listings that offer a bedroom inside an occupied home (joining an
+ * existing lease) rather than an entire unit. Ingestion already hard-drops
+ * blatant "room for rent" posts, so this catches the subtler shared-housing
+ * language that survives into cards, including cached ones.
+ */
+function isSharedUnitListing(text: string) {
+  return SHARED_UNIT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+const SHARED_UNIT_PATTERNS = [
+  /\b(?:private|shared|furnished) (?:bed)?rooms?\b/i,
+  /\brooms? (?:for rent|to rent|for lease|available)\b/i,
+  // "bedroom in a 3 bed apartment" — but not "living room in a 3 bed".
+  /(?<!\b(?:living|dining|family|sun|bonus|laundry|media|rec) )\b(?:bed)?room in an? (?:\d+|two|three|four|five|six)[ -]*(?:bed(?:room)?s?|br|bd)\b/i,
+  /\bsros?\b|single[- ]room occupancy/i,
+  /\bco-?living\b/i,
+  /\b(?:room|house|flat)mates? (?:wanted|needed)\b/i,
+  /\blooking for an? (?:new )?(?:room|house|flat)mate\b/i,
+  /\bjoin (?:our|the|an existing) (?:lease|household|apartment|flat|home)\b/i,
+  /\bshared (?:apartment|house|flat|home|unit|housing|living space)\b/i,
+];
 
 function passesCoreGate(apartment: ApartmentCard, preferences: Preferences) {
   if (apartment.images.length === 0) return false;

@@ -12,6 +12,7 @@ const profiles = [
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   },
   {
@@ -25,6 +26,7 @@ const profiles = [
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   },
   {
@@ -38,6 +40,7 @@ const profiles = [
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   },
   {
@@ -51,6 +54,7 @@ const profiles = [
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   },
   {
@@ -64,6 +68,7 @@ const profiles = [
     laundry: "any",
     dishwasher: false,
     pets: false,
+    entireUnit: false,
     minSquareFeet: 0,
   },
   {
@@ -77,6 +82,7 @@ const profiles = [
     laundry: "in-unit",
     dishwasher: true,
     pets: true,
+    entireUnit: true,
     minSquareFeet: 500,
   },
 ];
