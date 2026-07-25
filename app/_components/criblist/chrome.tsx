@@ -29,7 +29,7 @@ export function Header({
 }) {
   const previews = saved.slice(0, 3);
   return (
-    <header className="flex h-[72px] w-full items-center justify-center">
+    <header className="flex h-[88px] w-full items-center justify-center pt-4">
       <div className="inline-flex h-9 items-center gap-3">
         <button
           type="button"

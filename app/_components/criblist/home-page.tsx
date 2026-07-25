@@ -127,7 +127,7 @@ export function HomePage() {
     setSaved((current) => current.filter((apartment) => apartment.url !== url));
   }, []);
 
-  const search = useCallback(async () => {
+  const search = useCallback(async (extraExcludeUrls: readonly string[] = []) => {
     const sequence = searchSequence.current + 1;
     searchSequence.current = sequence;
     setStage("searching");
@@ -140,6 +140,7 @@ export function HomePage() {
       const excludeUrls = [
         ...new Set([
           ...seenUrls,
+          ...extraExcludeUrls,
           ...saved.map((apartment) => apartment.url),
         ]),
       ].slice(-200);
@@ -188,12 +189,15 @@ export function HomePage() {
       setHistory((current) => [...current, { apartment: currentApartment, kind }]);
       setDetail(null);
       if (currentIndex >= apartments.length - 1) {
-        setStage("done");
+        // Deck exhausted: pull a fresh batch instead of dropping to a dead-end
+        // screen. The just-swiped URL is passed explicitly because the
+        // `seenUrls` state update above hasn't landed in `search`'s closure.
+        void search([currentApartment.url]);
         return;
       }
       setCurrentIndex((index) => index + 1);
     },
-    [currentApartment, currentIndex, apartments.length, addSaved],
+    [currentApartment, currentIndex, apartments.length, addSaved, search],
   );
 
   const undo = useCallback(() => {
