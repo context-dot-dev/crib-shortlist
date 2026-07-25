@@ -1,6 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f5f1ed",
+};
 
 const inter = Inter({
   subsets: ["latin"],
@@ -19,11 +26,11 @@ function resolveSiteUrl(): string {
 
 export const metadata: Metadata = {
   metadataBase: new URL(resolveSiteUrl()),
-  title: "criblist — sf rentals",
+  title: "criblist · sf rentals",
   description:
     "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
   openGraph: {
-    title: "criblist — sf rentals",
+    title: "criblist · sf rentals",
     description:
       "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
     siteName: "criblist",
@@ -31,7 +38,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "criblist — sf rentals",
+    title: "criblist · sf rentals",
     description:
       "criblist turns live san francisco listings into a clean deck you can swipe, save, and act on.",
   },

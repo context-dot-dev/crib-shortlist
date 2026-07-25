@@ -11,7 +11,6 @@ import {
   type ExtractedInventoryConfig,
 } from "./extracted-inventory";
 import { discoverMosserListings } from "./mosser";
-import { discoverRentBtListings } from "./rentbt";
 import { discoverRentalsInSfListings } from "./rentalsinsf";
 import { discoverRentSfNowListings } from "./rentsfnow";
 import type {
@@ -39,7 +38,15 @@ const extractedInventoryAdapter = (
     discoverExtractedInventory(config, preferences, apiKey);
 
 const SOURCE_ADAPTERS = {
-  "brick-timber": discoverRentBtListings,
+  "brick-timber": extractedInventoryAdapter({
+    id: "brick-timber",
+    inventoryUrl: "https://rentbt.com/listings/",
+    instructions:
+      "Extract every currently available San Francisco apartment, up to 50. Use the exact public detail-page URL, numeric monthly rent, bedrooms, bathrooms, address, square feet and all visible image URLs. Exclude navigation, unavailable units, rooms, and properties outside San Francisco. Do not invent missing values.",
+    caveat:
+      "Live Brick + Timber inventory. Verify availability before applying.",
+    requireSanFranciscoAddress: true,
+  }),
   rentsfnow: discoverRentSfNowListings,
   mosser: discoverMosserListings,
   craigslist: discoverCraigslistListings,

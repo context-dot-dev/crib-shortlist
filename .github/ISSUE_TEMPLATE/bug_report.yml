@@ -1,0 +1,95 @@
+name: Bug report
+description: Report reproducible behavior that is incorrect or broken.
+title: "[Bug]: "
+labels: []
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include API keys, tokens, personal
+        data, or security-sensitive details. Use SECURITY.md for vulnerabilities.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: A concise description of the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest sequence that reliably shows the issue.
+      placeholder: |
+        1. Start the app with...
+        2. Search for...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include sanitized errors or screenshots when useful.
+    validations:
+      required: true
+
+  - type: input
+    id: revision
+    attributes:
+      label: Criblist revision
+      description: Commit SHA, branch, or deployment URL.
+      placeholder: main at abc1234
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, browser, and hosting platform when relevant.
+      placeholder: macOS 15, Node.js 20.19, Chrome 134, local development
+
+  - type: dropdown
+    id: live-source
+    attributes:
+      label: Does this involve live source data?
+      options:
+        - "No"
+        - "Yes, one provider"
+        - "Yes, multiple providers"
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sanitized logs, provider names, or other useful details.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I removed credentials, tokens, and personal data from this report.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true

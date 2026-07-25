@@ -20,7 +20,7 @@ export const LISTING_PROVIDERS = [
   {
     sourceId: "brick-timber",
     searchOrder: 0,
-    lanes: ["fast", "independent"] as const,
+    lanes: ["extract", "independent"] as const,
     domain: "rentbt.com",
     label: "brick + timber",
     url: "https://rentbt.com/listings/",

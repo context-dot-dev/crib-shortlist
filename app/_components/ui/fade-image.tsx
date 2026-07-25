@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/_lib/utils";
 
 export type FadeImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
+
+const useIsoLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function FadeImage({
   alt = "",
@@ -17,9 +20,16 @@ function FadeImage({
   const loaded = Boolean(src) && loadedSrc === src;
   const failed = Boolean(src) && failedSrc === src;
 
-  useEffect(() => {
+  // Layout effect so already-decoded (cached) images are marked loaded
+  // before first paint: they render instantly instead of re-fading, which
+  // matters when a deck card is promoted and remounts with the same photo.
+  useIsoLayoutEffect(() => {
     const image = ref.current;
     if (!image || !src) return;
+    if (image.complete && image.naturalWidth > 0) {
+      setLoadedSrc(src);
+      return;
+    }
     let cancelled = false;
     image
       .decode()
@@ -40,6 +50,7 @@ function FadeImage({
       alt={alt}
       src={src}
       decoding="async"
+      draggable={false}
       onLoad={(event) => {
         setLoadedSrc(src);
         onLoad?.(event);

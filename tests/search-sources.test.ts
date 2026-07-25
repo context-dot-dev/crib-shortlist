@@ -17,7 +17,6 @@ import {
 } from "../server/search/html";
 import { extractedCardFromHtml } from "../server/search/extracted-inventory";
 import { buildApartmentDeck } from "../server/search/apartment-deck";
-import { rentBtCardFromHit } from "../server/search/rentbt";
 import {
   extractRentalsInSfUrls,
   rentalsInSfCardFromHtml,
@@ -311,34 +310,64 @@ test("parses RentSFNow featured inventory cards", () => {
   assert.equal(candidates[0].image, "https://cdn.rentcafe.com/unit(1).jpg");
 });
 
-test("maps available Brick + Timber hits without a detail scrape", () => {
-  const cards = rentBtCardFromHit(
+test("enriches Brick + Timber Extract candidates from detail markup", () => {
+  const candidate: ContextListing = {
+    name: "540 Leavenworth Street #104",
+    url: "https://rentbt.com/listing/540-leavenworth-unit-104",
+    price: 2_595,
+    bedrooms: 1,
+    bathrooms: 1,
+    neighborhood: "Tenderloin",
+    address: "540 Leavenworth Street, San Francisco, CA 94109",
+    squareFeet: 610,
+    petsAllowed: true,
+    images: [],
+  };
+  const html = `
+    <script type="application/ld+json">
+      {
+        "@type": "Apartment",
+        "name": "540 Leavenworth Street #104",
+        "description": "Pet friendly with shared laundry in the building.",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "540 Leavenworth Street",
+          "addressLocality": "San Francisco",
+          "addressRegion": "CA",
+          "postalCode": "94109"
+        },
+        "numberOfBedrooms": 1,
+        "numberOfBathroomsTotal": 1,
+        "floorSize": { "value": 610 },
+        "petsAllowed": true,
+        "image": ["https://images.example.com/leavenworth.jpg"],
+        "offers": {
+          "@type": "Offer",
+          "price": 2595,
+          "availability": "https://schema.org/InStock"
+        }
+      }
+    </script>
+  `;
+  const card = extractedCardFromHtml(
     {
-      permalink: "https://rentbt.com/listing/540-leavenworth-unit-104",
-      propertyName: "540 Leavenworth Street",
-      propertyAddress: "540 Leavenworth Street, San Francisco, CA 94109",
-      propertyDescription: "Pet friendly with common area laundry.",
-      propertyCity: "San Francisco",
-      unitNumber: "104",
-      unitAvailable: true,
-      unitBedrooms: 1,
-      unitBathrooms: 1,
-      unitPrice: 2_595,
-      unitInteriorSquareFeet: 610,
-      unitPhotos: [
-        { full_url: "https://dam.getresi.co/540-leavenworth-full.jpg" },
-      ],
-      amenityNames: ["Pet Friendly", "Common Area Laundry"],
-      customFacets: { neighborhood: "Tenderloin" },
+      id: "brick-timber",
+      inventoryUrl: "https://rentbt.com/listings/",
+      instructions: "",
+      caveat:
+        "Live Brick + Timber inventory. Verify availability before applying.",
+      requireSanFranciscoAddress: true,
     },
+    candidate,
+    html,
     preferences,
   );
 
-  assert.equal(cards.length, 1);
-  assert.equal(cards[0].provider, "rentbt.com");
-  assert.equal(cards[0].squareFeet, 610);
-  assert.equal(cards[0].petsAllowed, true);
-  assert.equal(cards[0].laundry, "in-building");
+  assert.ok(card);
+  assert.equal(card.provider, "rentbt.com");
+  assert.equal(card.squareFeet, 610);
+  assert.equal(card.petsAllowed, true);
+  assert.equal(card.laundry, "in-building");
 });
 
 test("uses J. Wavro detail JSON-LD to enrich Extract candidates", () => {
@@ -684,13 +713,13 @@ test("maps client search lanes to persistent inventory sources", () => {
     new Set(SOURCE_IDS),
   );
   assert.deepEqual(selectedSources("fast"), [
-    "brick-timber",
     "rentsfnow",
     "mosser",
     "rentalsinsf",
   ]);
   assert.deepEqual(selectedSources("craigslist"), ["craigslist"]);
   assert.deepEqual(selectedSources("extract"), [
+    "brick-timber",
     "jwavro",
     "rentalsinc",
     "landmark",

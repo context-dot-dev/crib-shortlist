@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// Matches Tailwind's `md` breakpoint — below this the layout collapses to a
+// Matches Tailwind's `md` breakpoint; below this the layout collapses to a
 // single column and the drawer takes over the full viewport.
 const MOBILE_BREAKPOINT = 768;
 

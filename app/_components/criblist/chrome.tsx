@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { FadeImage } from "@/_components/ui/fade-image";
 import { Icon } from "@/_components/ui/icon";
 import { IconHeartFillDuo18 } from "@/_components/ui/icons";
@@ -79,9 +80,15 @@ export function Header({
           <span className="hidden text-secondary transition-colors group-hover:text-foreground sm:inline">
             shortlist
           </span>
-          <span className="grid min-w-5 place-items-center rounded-full bg-foreground px-1.5 py-1 text-[9px] font-semibold leading-none text-card tabular-nums">
+          <motion.span
+            key={saved.length}
+            initial={{ scale: 1.45 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 24 }}
+            className="grid min-w-5 place-items-center rounded-full bg-foreground px-1.5 py-1 text-[9px] font-semibold leading-none text-card tabular-nums"
+          >
             {saved.length}
-          </span>
+          </motion.span>
         </button>
       </div>
     </header>

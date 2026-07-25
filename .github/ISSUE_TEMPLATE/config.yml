@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/context-dot-dev/crib-shortlist/blob/main/SECURITY.md
+    about: Report suspected vulnerabilities privately using the security policy.
+  - name: Context.dev product support
+    url: https://context.dev/contact
+    about: Get help with Context.dev accounts, API keys, billing, or API behavior.

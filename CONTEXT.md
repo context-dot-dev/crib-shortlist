@@ -48,4 +48,4 @@ _Avoid_: Filters, criteria
 
 ## Flagged ambiguities
 
-- "source" and "provider" were used interchangeably — resolved: a **Listing Source** is the acquisition path, while a **Provider** is the listing's displayed origin.
+- "source" and "provider" were used interchangeably. Resolved: a **Listing Source** is the acquisition path, while a **Provider** is the listing's displayed origin.

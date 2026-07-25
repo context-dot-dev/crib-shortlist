@@ -218,7 +218,7 @@ export function HomePage() {
 
   return (
     <main className="nook-canvas text-foreground">
-      <div className="relative z-10 flex min-h-screen flex-col px-4 sm:px-6 md:px-10">
+      <div className="relative z-10 flex min-h-dvh flex-col px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:px-6 md:px-10">
         <Header
           saved={saved}
           onOpenSaved={() => setSavedOpen(true)}
@@ -241,13 +241,15 @@ export function HomePage() {
               <Searching key="searching" preferences={preferences} />
             ) : stage === "deck" && currentApartment ? (
               <ApartmentDeck
-                key={currentApartment.url}
+                key="deck"
                 apartment={currentApartment}
                 nextApartment={apartments[currentIndex + 1]}
                 afterNext={apartments[currentIndex + 2]}
                 currentIndex={currentIndex}
                 total={apartments.length}
                 canUndo={history.length > 0}
+                lastDecision={history[history.length - 1]?.kind ?? null}
+                modalOpen={savedOpen || detail !== null}
                 onDecision={decide}
                 onDetails={() => setDetail(currentApartment)}
                 onUndo={undo}

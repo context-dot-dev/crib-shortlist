@@ -502,6 +502,7 @@ function BudgetRange({
           <span className="text-[13px] text-secondary">$</span>
           <input
             type="number"
+            inputMode="numeric"
             min={0}
             max={20_000}
             step={100}
@@ -511,7 +512,7 @@ function BudgetRange({
                 Math.min(20_000, Number(event.target.value) || 0),
               )
             }
-            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium tracking-[0.2px] tabular-nums outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[16px] font-medium tracking-[0.2px] tabular-nums outline-none sm:text-[14px]"
           />
         </span>
       </label>
@@ -524,6 +525,7 @@ function BudgetRange({
           <span className="text-[13px] text-secondary">$</span>
           <input
             type="number"
+            inputMode="numeric"
             min={1_000}
             max={20_000}
             step={100}
@@ -533,7 +535,7 @@ function BudgetRange({
                 Math.min(20_000, Number(event.target.value) || 0),
               )
             }
-            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium tracking-[0.2px] tabular-nums outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[16px] font-medium tracking-[0.2px] tabular-nums outline-none sm:text-[14px]"
           />
         </span>
       </label>

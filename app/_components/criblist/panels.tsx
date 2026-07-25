@@ -130,7 +130,7 @@ export function DetailDrawer({
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-[22px] font-semibold tracking-[-0.6px]">
-                      {apartment.price === null ? "—" : MONEY.format(apartment.price)}
+                      {apartment.price === null ? "–" : MONEY.format(apartment.price)}
                     </p>
                     <p className="text-[10px] font-medium text-secondary">/ month</p>
                   </div>
@@ -147,7 +147,7 @@ export function DetailDrawer({
               <MoveInRow availability={apartment.availability} />
 
               {apartment.description ? (
-                <p className="text-[13px] leading-[20px] text-secondary">
+                <p className="text-[15px] leading-[22px] text-secondary sm:text-[13px] sm:leading-[20px]">
                   {apartment.description}
                 </p>
               ) : null}
@@ -191,7 +191,7 @@ export function DetailDrawer({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 border-t border-border bg-card p-4">
+          <div className="flex items-center gap-2.5 border-t border-border bg-card p-4 pb-[max(--spacing(4),env(safe-area-inset-bottom))]">
             <a
               href={apartment.url}
               target="_blank"
@@ -353,7 +353,7 @@ function SpecStrip({ apartment }: { apartment: ApartmentCard }) {
     { icon: IconBedDoubleFillDuo18, label: formatBedrooms(apartment.bedrooms) },
     {
       icon: IconBathtubFillDuo18,
-      label: apartment.bathrooms === null ? "— bath" : `${apartment.bathrooms} bath`,
+      label: apartment.bathrooms === null ? "– bath" : `${apartment.bathrooms} bath`,
     },
   ];
   if (apartment.squareFeet) {
@@ -461,7 +461,7 @@ export function SavedPanel({
     const text =
       saved.length > 0
         ? `my criblist sf shortlist:\n${saved
-            .map((apartment) => `• ${apartment.name} — ${apartment.url}`)
+            .map((apartment) => `• ${apartment.name} - ${apartment.url}`)
             .join("\n")}`
         : "my criblist sf shortlist is empty.";
     if (navigator.share) {
@@ -521,7 +521,7 @@ export function SavedPanel({
               </span>
               <p className="mt-4 text-[15px] font-medium">nothing saved yet</p>
               <p className="mt-1.5 text-[13px] leading-[18px] text-secondary">
-                swipe right — or tap keep — on a listing and it lands here,
+                swipe right (or tap keep) on a listing and it lands here,
                 waiting for you when you come back.
               </p>
             </div>
@@ -550,7 +550,7 @@ export function SavedPanel({
                           {apartment.name}
                         </p>
                         <p className="mt-1 truncate text-[12px] font-medium text-secondary">
-                          {apartment.price ? MONEY.format(apartment.price) : "—"}
+                          {apartment.price ? MONEY.format(apartment.price) : "–"}
                           {apartment.neighborhood ? ` · ${apartment.neighborhood}` : ""}
                         </p>
                         <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
@@ -588,7 +588,7 @@ export function SavedPanel({
           )}
         </div>
 
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-4 pb-[max(--spacing(4),env(safe-area-inset-bottom))]">
           {saved.length > 0 ? (
             <button
               type="button"

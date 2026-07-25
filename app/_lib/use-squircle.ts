@@ -9,7 +9,7 @@ export interface UseSquircleOptions {
 	 * border effects. When provided, Lisse's `autoEffects` is enabled, which
 	 * extracts every CSS `box-shadow` and `border` layer from the inner
 	 * element via `parseBoxShadow` and re-renders them as SVG that traces
-	 * the squircle silhouette exactly — including spread, multiple layers,
+	 * the squircle silhouette exactly, including spread, multiple layers,
 	 * and inset shadows. Without a wrapper, `clip-path` would crop the
 	 * native CSS shadow against the element's painted box and you'd get a
 	 * shadowless squircle.
@@ -22,7 +22,7 @@ export interface UseSquircleOptions {
  * the @lisse/react smooth-corners hook with Figma's standard smoothing
  * factor (0.6) so the rendered curvature matches what designers draw.
  *
- * For elements that need a visible shadow, pass `{ wrapperRef }` — see
+ * For elements that need a visible shadow, pass `{ wrapperRef }`; see
  * the field doc on `UseSquircleOptions.wrapperRef` for the rationale.
  *
  * @param ref     element to clip to a squircle

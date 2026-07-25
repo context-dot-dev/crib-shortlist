@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import type { IconProps as GlyphProps } from "@/_components/ui/icons";
 import { cn } from "@/_lib/utils";
 
-export type IconSize = 12 | 14 | 16 | 18 | 20 | 24;
+export type IconSize = 12 | 14 | 15 | 16 | 18 | 20 | 24;
 
 export interface IconProps
   extends Omit<GlyphProps, "size" | "width" | "height"> {

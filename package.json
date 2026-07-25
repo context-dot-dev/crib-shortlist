@@ -5,12 +5,16 @@
   "description": "A swipeable shortlist of live San Francisco apartment listings.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/context-dot-dev/crib-shortlist#readme",
+  "bugs": {
+    "url": "https://github.com/context-dot-dev/crib-shortlist/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/context-dot-dev/crib-shortlist.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -19,6 +23,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test",
     "stress:search": "node scripts/stress-search.mjs",
     "cache:warm": "tsx scripts/warm-listings.ts",
     "cache:watch": "tsx scripts/warm-listings.ts --watch"
@@ -32,6 +37,7 @@
   "dependencies": {
     "@libsql/client": "^0.17.4",
     "@lisse/react": "^0.3.2",
+    "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.3.0",
     "clsx": "^2.1.1",
     "motion": "^12.38.0",
