@@ -535,12 +535,13 @@ export function SavedPanel({
                       onClick={() => onOpen(apartment)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none"
                     >
-                      <div className="size-16 shrink-0 overflow-hidden rounded-[12px] bg-muted">
+                      <div className="relative grid size-16 shrink-0 place-items-center overflow-hidden rounded-[12px] bg-muted text-swatch-coral">
+                        <Icon glyph={IconHeartFillDuo18} size={20} />
                         {apartment.images[0] ? (
                           <FadeImage
                             src={apartment.images[0]}
                             alt=""
-                            className="size-full object-cover"
+                            className="absolute inset-0 size-full object-cover"
                           />
                         ) : null}
                       </div>

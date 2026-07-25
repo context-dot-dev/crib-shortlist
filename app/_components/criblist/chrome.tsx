@@ -58,17 +58,16 @@ export function Header({
                   )}
                   style={{ zIndex: previews.length - index }}
                 >
+                  <span className="absolute inset-0 grid place-items-center text-swatch-coral">
+                    <Icon glyph={IconHeartFillDuo18} size={14} />
+                  </span>
                   {apartment.images[0] ? (
                     <FadeImage
                       src={apartment.images[0]}
                       alt=""
-                      className="size-full object-cover"
+                      className="relative size-full object-cover"
                     />
-                  ) : (
-                    <span className="grid size-full place-items-center text-swatch-coral">
-                      <Icon glyph={IconHeartFillDuo18} size={14} />
-                    </span>
-                  )}
+                  ) : null}
                 </span>
               ))
             ) : (
