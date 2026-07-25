@@ -14,7 +14,7 @@ import type { SourceId } from "../search/sources";
 
 const COVERAGE_MAX_AGE_MS = 45 * 60 * 1000;
 const LISTING_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-const MAX_CACHED_CANDIDATES = 120;
+const MAX_CACHED_CANDIDATES = 300;
 
 const globalDatabase = globalThis as typeof globalThis & {
   criblistDatabase?: ReturnType<typeof createClient>;

@@ -13,6 +13,7 @@ import {
   fetchPublicHtml,
   publicUrlExists,
 } from "../server/search/html";
+import { extractedCardFromHtml } from "../server/search/extracted-inventory";
 import { jwavroCardFromHtml } from "../server/search/jwavro";
 import {
   dedupeApartments,
@@ -22,6 +23,10 @@ import {
   rankApartments,
 } from "../server/search/ranking";
 import { rentBtCardFromHit } from "../server/search/rentbt";
+import {
+  extractRentalsInSfUrls,
+  rentalsInSfCardFromHtml,
+} from "../server/search/rentalsinsf";
 import { extractRentSfNowCandidates } from "../server/search/rentsfnow";
 import { selectedSources } from "../server/search/sources";
 import type {
@@ -295,6 +300,95 @@ test("uses J. Wavro detail JSON-LD to enrich Extract candidates", () => {
   assert.equal(card.images.length, 1);
 });
 
+test("enriches a Context candidate with detail-page JSON-LD", () => {
+  const candidate: ContextListing = {
+    name: "869 Sutter St, 107",
+    url: "https://www.rentalsinc.com/listings/869-sutter-st-107",
+    price: 3_395,
+    bedrooms: 1,
+    bathrooms: 1,
+    neighborhood: "Nob Hill",
+    address: "869 Sutter St, San Francisco, CA 94109",
+    squareFeet: null,
+    petsAllowed: null,
+    images: [],
+  };
+  const card = extractedCardFromHtml(
+    {
+      id: "rentalsinc",
+      inventoryUrl: "https://www.rentalsinc.com/markets/san-francisco",
+      instructions: "",
+      caveat: "Verify availability.",
+      requireSanFranciscoAddress: true,
+    },
+    candidate,
+    `
+      <meta property="og:image" content="https://images.example.com/unit.jpg">
+      <script type="application/ld+json">
+        {
+          "@type": ["Product", "Apartment"],
+          "name": "869 Sutter St, 107",
+          "description": "Remodeled 1-bedroom with in-unit laundry and dishwasher.",
+          "numberOfBedrooms": 1,
+          "numberOfBathroomsTotal": 1,
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "869 Sutter St",
+            "addressLocality": "San Francisco",
+            "addressRegion": "CA",
+            "postalCode": "94109"
+          },
+          "image": ["https://images.example.com/unit.jpg"],
+          "offers": {
+            "@type": "Offer",
+            "price": "3395",
+            "availability": "https://schema.org/InStock"
+          }
+        }
+      </script>
+    `,
+    preferences,
+  );
+
+  assert.ok(card);
+  assert.equal(card.provider, "rentalsinc.com");
+  assert.equal(card.price, 3_395);
+  assert.equal(card.laundry, "in-unit");
+  assert.equal(card.dishwasher, true);
+  assert.equal(card.images.length, 1);
+});
+
+test("parses Rentals in SF inventory and detail pages", () => {
+  const url =
+    "https://www.rentalsinsf.com/rentals/442995461-hoffman-ave-san-francisco/";
+  assert.deepEqual(
+    extractRentalsInSfUrls(`
+      <a href="${url}">listing</a>
+      <a href="${url}">details</a>
+    `),
+    [url],
+  );
+
+  const card = rentalsInSfCardFromHtml(
+    url,
+    `
+      <meta property="og:title" content="216 Hoffman Ave. | Rentals in SF">
+      <meta name="description" content="Bright 1-bedroom with shared laundry.">
+      <span class="page-price">$2995</span>
+      <span title="Bedrooms" class="icon beds"><span class="icon-value">1</span></span>
+      <span title="Bathrooms" class="icon bath"><span class="icon-value">1</span></span>
+      <img data-src="https://www.rentalsinsf.com/wp-content/uploads/hoffman-1300x800.jpeg">
+    `,
+    preferences,
+  );
+
+  assert.ok(card);
+  assert.equal(card.provider, "rentalsinsf.com");
+  assert.equal(card.price, 2_995);
+  assert.equal(card.bedrooms, 1);
+  assert.equal(card.images.length, 1);
+});
+
 test("does not silently relax explicit must-have filters", () => {
   const apartment: ApartmentCard = {
     name: "Incomplete one bedroom",
@@ -333,6 +427,25 @@ test("does not silently relax explicit must-have filters", () => {
 
   assert.equal(ranked.apartments.length, 0);
   assert.equal(ranked.relaxed, false);
+});
+
+test("fills a deck after source diversity is exhausted", () => {
+  const apartments = Array.from({ length: 10 }, (_, index) =>
+    apartmentCard({
+      name: `Craigslist apartment ${index}`,
+      url: `https://craigslist.org/listing-${index}`,
+      provider: "craigslist.org",
+      address: `${index + 1} Market Street, San Francisco, CA`,
+    }),
+  );
+
+  const ranked = rankApartments(apartments, preferences);
+
+  assert.equal(ranked.apartments.length, 8);
+  assert.equal(
+    new Set(ranked.apartments.map((apartment) => apartment.url)).size,
+    8,
+  );
 });
 
 test("recalculates cached cards for the current preferences", () => {
@@ -451,9 +564,15 @@ test("maps client search lanes to persistent inventory sources", () => {
     "brick-timber",
     "rentsfnow",
     "mosser",
+    "rentalsinsf",
   ]);
   assert.deepEqual(selectedSources("craigslist"), ["craigslist"]);
-  assert.deepEqual(selectedSources("extract"), ["jwavro"]);
+  assert.deepEqual(selectedSources("extract"), [
+    "jwavro",
+    "rentalsinc",
+    "landmark",
+    "relisto",
+  ]);
 });
 
 test("coalesces concurrent requests for the same public page", async () => {

@@ -4,6 +4,7 @@ import {
   formatPostalAddress,
   isRecord,
   jsonLdFromHtml,
+  mapWithConcurrency,
   textFromHtml,
 } from "./html";
 import {
@@ -56,12 +57,10 @@ export async function discoverJwavroListings(
         candidate.price <= preferences.budgetMax &&
         matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
     )
-    .slice(0, 8);
+    .slice(0, 20);
   const apartments = (
-    await Promise.all(
-      candidates.map((candidate) =>
-        fetchJwavroCard(candidate, preferences),
-      ),
+    await mapWithConcurrency(candidates, 5, (candidate) =>
+      fetchJwavroCard(candidate, preferences),
     )
   ).filter((apartment): apartment is ApartmentCard => apartment !== null);
   if (apartments.length > 0) {

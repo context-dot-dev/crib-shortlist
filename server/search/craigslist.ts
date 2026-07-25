@@ -4,6 +4,7 @@ import {
   fetchPublicHtml,
   formatPostalAddress,
   jsonLdFromHtml,
+  mapWithConcurrency,
   metaContent,
   textFromHtml,
 } from "./html";
@@ -78,10 +79,10 @@ export async function discoverCraigslistListings(
           candidate.name,
         ),
     )
-    .slice(0, 10)
+    .slice(0, 24)
     .map((candidate) => candidate.url);
-  const cards = await Promise.all(
-    urls.map((url) => scrapeListing(url, preferences)),
+  const cards = await mapWithConcurrency(urls, 5, (url) =>
+    scrapeListing(url, preferences),
   );
   const apartments = cards.filter(
     (card): card is ApartmentCard => card !== null,

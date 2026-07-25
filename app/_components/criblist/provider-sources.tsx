@@ -15,9 +15,13 @@ const SOURCE_ACCENTS: Record<string, string> = {
   "rentsfnow.com": "#d1492e",
   "mosserliving.com": "#1796c7",
   "jwavro.com": "#3d496b",
+  "rentalsinc.com": "#255b46",
+  "rentalsinsf.com": "#b43b32",
+  "landmarksf.com": "#9b6d35",
+  "relisto.com": "#c54831",
 };
 
-const PROVIDER_BRANDS_ENDPOINT = "/api/provider-brands?v=2";
+const PROVIDER_BRANDS_ENDPOINT = "/api/provider-brands?v=3";
 
 export function ProviderSources() {
   const [providers, setProviders] = useState(fallbackProviderBrands);

@@ -1,6 +1,7 @@
 import {
   decodeHtml,
   fetchPublicHtml,
+  mapWithConcurrency,
   metaContent,
   textFromHtml,
 } from "./html";
@@ -41,7 +42,7 @@ export async function discoverRentSfNowListings(preferences: Preferences) {
   const cached = rentSfNowCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.apartments;
 
-  const html = await fetchPublicHtml(INVENTORY_URL, 10_000);
+  const html = await fetchPublicHtml(INVENTORY_URL, 20_000);
   const candidates = extractRentSfNowCandidates(html)
     .filter(
       (candidate) =>
@@ -49,12 +50,10 @@ export async function discoverRentSfNowListings(preferences: Preferences) {
         candidate.price <= preferences.budgetMax &&
         matchesBedrooms(candidate.bedrooms, preferences.bedrooms),
     )
-    .slice(0, 6);
+    .slice(0, 24);
   const apartments = (
-    await Promise.all(
-      candidates.map((candidate) =>
-        enrichRentSfNowCandidate(candidate, preferences),
-      ),
+    await mapWithConcurrency(candidates, 5, (candidate) =>
+      enrichRentSfNowCandidate(candidate, preferences),
     )
   ).filter((apartment): apartment is ApartmentCard => apartment !== null);
   if (apartments.length > 0) {

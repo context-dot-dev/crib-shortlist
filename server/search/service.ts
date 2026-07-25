@@ -4,6 +4,7 @@ import {
 } from "../cache/listings";
 import { discoverCraigslistListings } from "./craigslist";
 import { discoverJwavroListings } from "./jwavro";
+import { discoverLandmarkListings } from "./landmark";
 import { discoverMosserListings } from "./mosser";
 import {
   countByProvider,
@@ -12,6 +13,9 @@ import {
   rankApartments,
 } from "./ranking";
 import { discoverRentBtListings } from "./rentbt";
+import { discoverRelistoListings } from "./relisto";
+import { discoverRentalsInSfListings } from "./rentalsinsf";
+import { discoverRentalsIncListings } from "./rentalsinc";
 import { discoverRentSfNowListings } from "./rentsfnow";
 import type { ApartmentCard, Preferences } from "./schemas";
 import {
@@ -149,7 +153,26 @@ export async function refreshInventorySegment(
   preferences: Preferences,
   apiKey: string,
 ) {
-  const result = await measure(() => runSource(sourceId, preferences, apiKey));
+  const result = await measure(async () => {
+    const priceBands = [
+      { budgetMin: 0, budgetMax: 1_799 },
+      { budgetMin: 1_800, budgetMax: 3_500 },
+      { budgetMin: 3_501, budgetMax: 20_000 },
+    ];
+    const apartments = await Promise.all(
+      priceBands.map((priceBand) =>
+        runSource(
+          sourceId,
+          {
+            ...preferences,
+            ...priceBand,
+          },
+          apiKey,
+        ),
+      ),
+    );
+    return dedupeApartments(apartments.flat());
+  });
   return {
     apartments: result.value,
     durationMs: result.durationMs,
@@ -167,7 +190,19 @@ export function runSource(
   if (source === "craigslist") {
     return discoverCraigslistListings(preferences, apiKey);
   }
-  return discoverJwavroListings(preferences, apiKey);
+  if (source === "jwavro") {
+    return discoverJwavroListings(preferences, apiKey);
+  }
+  if (source === "rentalsinc") {
+    return discoverRentalsIncListings(preferences, apiKey);
+  }
+  if (source === "rentalsinsf") {
+    return discoverRentalsInSfListings(preferences);
+  }
+  if (source === "landmark") {
+    return discoverLandmarkListings(preferences, apiKey);
+  }
+  return discoverRelistoListings(preferences, apiKey);
 }
 
 async function discoverSources(

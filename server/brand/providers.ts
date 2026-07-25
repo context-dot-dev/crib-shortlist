@@ -5,7 +5,7 @@ import {
 } from "../../shared/providers";
 import { requestContext } from "../search/context-client";
 
-const PROVIDER_CACHE_VERSION = 2;
+const PROVIDER_CACHE_VERSION = 3;
 
 const BrandResponseSchema = z
   .object({

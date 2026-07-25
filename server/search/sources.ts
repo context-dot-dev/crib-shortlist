@@ -4,6 +4,10 @@ export const SOURCE_IDS = [
   "mosser",
   "craigslist",
   "jwavro",
+  "rentalsinc",
+  "rentalsinsf",
+  "landmark",
+  "relisto",
 ] as const;
 
 export type SourceId = (typeof SOURCE_IDS)[number];
@@ -16,11 +20,20 @@ export type SearchSource =
   | "extract";
 
 export function selectedSources(source: SearchSource): SourceId[] {
-  if (source === "fast") return ["brick-timber", "rentsfnow", "mosser"];
+  if (source === "fast") {
+    return [
+      "brick-timber",
+      "rentsfnow",
+      "mosser",
+      "rentalsinsf",
+    ];
+  }
   if (source === "craigslist") return ["craigslist"];
-  if (source === "extract") return ["jwavro"];
+  if (source === "extract") {
+    return ["jwavro", "rentalsinc", "landmark", "relisto"];
+  }
   if (source === "independent") {
-    return ["brick-timber", "rentsfnow", "mosser", "jwavro"];
+    return SOURCE_IDS.filter((sourceId) => sourceId !== "craigslist");
   }
   return [...SOURCE_IDS];
 }

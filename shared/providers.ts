@@ -28,6 +28,26 @@ export const LISTING_PROVIDERS = [
     label: "j. wavro",
     url: "https://www.jwavro.com/rental_list.php?hood=sfc",
   },
+  {
+    domain: "rentalsinc.com",
+    label: "rentals inc.",
+    url: "https://www.rentalsinc.com/markets/san-francisco",
+  },
+  {
+    domain: "rentalsinsf.com",
+    label: "rentals in sf",
+    url: "https://www.rentalsinsf.com/listings/",
+  },
+  {
+    domain: "landmarksf.com",
+    label: "landmark sf",
+    url: "https://www.landmarksf.com/floorplans",
+  },
+  {
+    domain: "relisto.com",
+    label: "relisto",
+    url: "https://www.relisto.com/search/",
+  },
 ] as const;
 
 export type ProviderBrand = {

@@ -58,7 +58,7 @@ export async function discoverRentBtListings(preferences: Preferences) {
     },
     body: JSON.stringify({
       query: "san francisco",
-      hitsPerPage: 30,
+      hitsPerPage: 100,
       filters: [
         "unitAvailable:true",
         bedroomFilter(preferences.bedrooms),

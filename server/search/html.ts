@@ -107,6 +107,24 @@ export async function filterAvailableListings<T extends { url: string }>(
   return availableListings;
 }
 
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  operation: (item: T) => Promise<R>,
+) {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    results.push(
+      ...(await Promise.all(
+        items
+          .slice(index, index + concurrency)
+          .map((item) => operation(item)),
+      )),
+    );
+  }
+  return results;
+}
+
 export function jsonLdFromHtml(html: string) {
   return [
     ...html.matchAll(

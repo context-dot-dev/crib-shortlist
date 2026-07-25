@@ -71,10 +71,10 @@ export async function discoverMosserListings(preferences: Preferences) {
         candidate.price >= preferences.budgetMin &&
         candidate.price <= preferences.budgetMax,
     )
-    .slice(0, 8);
+    .slice(0, 24);
   const liveCandidates = await filterAvailableListings(candidatesInBudget);
   const apartments = liveCandidates
-    .slice(0, 4)
+    .slice(0, 16)
     .map((candidate) => createCard(candidate, preferences));
   if (apartments.length > 0) {
     deckCache.set(cacheKey, {

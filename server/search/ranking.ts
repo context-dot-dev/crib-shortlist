@@ -455,7 +455,11 @@ function diversifyApartments(apartments: ApartmentCard[]) {
     if (independent[index]) selected.push(independent[index]);
     if (craigslist[index]) selected.push(craigslist[index]);
   }
-  return selected;
+  const selectedUrls = new Set(selected.map((apartment) => apartment.url));
+  return [
+    ...selected,
+    ...apartments.filter((apartment) => !selectedUrls.has(apartment.url)),
+  ];
 }
 
 function normalizeListingUrl(rawUrl: string) {
