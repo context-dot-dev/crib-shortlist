@@ -1,6 +1,7 @@
 import {
   decodeHtml,
   fetchPublicHtml,
+  listingPublishedAtFromHtml,
   textFromHtml,
 } from "./html";
 import {
@@ -37,6 +38,7 @@ type StonehengeListing = {
   neighborhood: string | null;
   address: string;
   squareFeet: number | null;
+  listedAt: string | null;
 };
 
 export async function discoverStonehengeListings(
@@ -140,6 +142,7 @@ function parseStonehengeCard(block: string): StonehengeListing | null {
     squareFeet: numberValue(
       textFromHtml(block).match(/\b([\d,]+)\s*ft²\b/i)?.[1] ?? null,
     ),
+    listedAt: listingPublishedAtFromHtml(block),
   };
 }
 
@@ -175,6 +178,7 @@ function stonehengeCard(
     extracted,
     cleanImageUrls([listing.image]),
     preferences,
+    listing.listedAt,
   );
 }
 

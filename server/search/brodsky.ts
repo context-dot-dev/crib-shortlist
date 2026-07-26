@@ -26,6 +26,7 @@ type BrodskyListing = {
   neighborhood: string | null;
   address: string;
   availability: string | null;
+  listedAt: string | null;
   description: string | null;
   amenities: string[];
 };
@@ -148,6 +149,10 @@ function parseBrodskyListing(value: unknown): BrodskyListing | null {
     neighborhood: stringValue(value.neighborhoodName),
     address: `${propertyName}, New York, NY${zipCode ? ` ${zipCode}` : ""}`,
     availability: stringValue(value.availableDate),
+    listedAt:
+      stringValue(value.datePosted) ??
+      stringValue(value.createdAt) ??
+      stringValue(value.createdDate),
     description:
       descriptionParts.length > 0 ? descriptionParts.join(" ") : null,
     amenities,
@@ -189,6 +194,7 @@ function brodskyCard(
     extracted,
     cleanImageUrls([listing.image]),
     preferences,
+    listing.listedAt,
   );
 }
 

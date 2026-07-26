@@ -5,6 +5,7 @@ import {
 } from "./context-client";
 import {
   fetchPublicHtml,
+  listingPublishedAtFromHtml,
   mapWithConcurrency,
   metaContent,
   textFromHtml,
@@ -272,6 +273,7 @@ async function fetchStreetEasyCard(
       extracted,
       images,
       preferences,
+      listingPublishedAtFromHtml(html),
     );
   } catch {
     return null;

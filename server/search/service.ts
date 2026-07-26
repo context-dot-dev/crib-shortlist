@@ -36,7 +36,11 @@ export async function searchApartments(
   const cached = await safeReadCache(preferences, sources);
   const knownRemovedUrls: string[] = [];
 
-  if (cached.coverageFresh) {
+  const cacheSupportsRecency =
+    preferences.listedWithin === "any" ||
+    cached.apartments.some((apartment) => apartment.listedAt !== null);
+
+  if (cached.coverageFresh && cacheSupportsRecency) {
     const verified = await verifiedApartmentDeck(
       cached.apartments,
       preferences,
@@ -160,6 +164,7 @@ export function inventoryPreferences(
     bathroomsMin: 1,
     neighborhoods: [],
     moveIn: "flexible",
+    listedWithin: "any",
     laundry: "any",
     dishwasher: false,
     pets: false,

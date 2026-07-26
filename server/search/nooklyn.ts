@@ -28,6 +28,7 @@ type NooklynListing = {
   petsAllowed: boolean | null;
   noFee: boolean;
   availableAt: string | null;
+  listedAt: string | null;
   url: string;
   image: string | null;
 };
@@ -239,6 +240,7 @@ function nooklynCard(
     extracted,
     images,
     preferences,
+    listing.listedAt,
   );
 }
 
@@ -290,6 +292,10 @@ function parseNooklynListing(value: unknown): NooklynListing | null {
       : null,
     noFee: value.no_fee === true,
     availableAt: stringValue(value.date_available),
+    listedAt:
+      stringValue(value.date_posted) ??
+      stringValue(value.listed_at) ??
+      stringValue(value.created_at),
     url: new URL(path, NOOKLYN_ROOT).toString(),
     image,
   };

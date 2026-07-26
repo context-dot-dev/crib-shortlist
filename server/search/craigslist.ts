@@ -4,6 +4,7 @@ import {
   fetchPublicHtml,
   formatPostalAddress,
   jsonLdFromHtml,
+  listingPublishedAtFromHtml,
   mapWithConcurrency,
   metaContent,
   textFromHtml,
@@ -346,6 +347,7 @@ export function snapshotFromHtml(
       description,
       canonicalUrl,
       image: images[0],
+      datePublished: listingPublishedAtFromHtml(html) ?? undefined,
       jsonLd,
     },
   };
@@ -482,6 +484,7 @@ export function cardFromSnapshot(
     extracted,
     images,
     preferences,
+    snapshot.metadata.datePublished ?? null,
   );
   if (!hasScamSignals(listingBody)) return card;
   return {

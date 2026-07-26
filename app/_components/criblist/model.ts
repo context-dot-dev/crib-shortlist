@@ -29,6 +29,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   bathroomsMin: 1,
   neighborhoods: [],
   moveIn: "30 days",
+  listedWithin: "any",
   laundry: "any",
   dishwasher: false,
   pets: false,
@@ -68,7 +69,11 @@ export function formatSearchLabel(preferences: Preferences) {
       : preferences.bedrooms === "3+"
         ? "3+ beds"
         : `${preferences.bedrooms} bed`;
-  return `${CITY_CONFIG[preferences.city].shortLabel} · ${bedroom} · ${MONEY.format(preferences.budgetMin)}–${MONEY.format(preferences.budgetMax)}`;
+  const recency =
+    preferences.listedWithin === "any"
+      ? ""
+      : ` · listed within ${preferences.listedWithin}`;
+  return `${CITY_CONFIG[preferences.city].shortLabel} · ${bedroom} · ${MONEY.format(preferences.budgetMin)}–${MONEY.format(preferences.budgetMax)}${recency}`;
 }
 
 export function cityPreferences(city: CityId): Partial<Preferences> {
@@ -79,4 +84,13 @@ export function cityPreferences(city: CityId): Partial<Preferences> {
     budgetMin: budget.minimum,
     budgetMax: budget.maximum,
   };
+}
+
+export function widerListingWindow(
+  listedWithin: Preferences["listedWithin"],
+): Preferences["listedWithin"] | null {
+  if (listedWithin === "24 hours") return "3 days";
+  if (listedWithin === "3 days") return "7 days";
+  if (listedWithin === "7 days") return "any";
+  return null;
 }

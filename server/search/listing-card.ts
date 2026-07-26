@@ -13,10 +13,12 @@ export function createApartmentCard(
   extracted: ExtractedApartment,
   images: string[],
   preferences: Preferences,
+  listedAt: string | null = null,
 ): ApartmentCard {
   const provider = new URL(source.url).hostname.replace(/^www\./, "");
   const cleanImages = cleanImageUrls(images).slice(0, 10);
   const availability = formatAvailability(extracted.availability);
+  const normalizedListedAt = normalizeListedAt(listedAt);
   return {
     city: preferences.city,
     name: extracted.name ?? source.title,
@@ -31,6 +33,7 @@ export function createApartmentCard(
     squareFeet: extracted.squareFeet,
     floorLevel: null,
     availability,
+    listedAt: normalizedListedAt,
     description: extracted.description ?? source.description,
     laundry: extracted.laundry,
     dishwasher: extracted.dishwasher,
@@ -40,6 +43,7 @@ export function createApartmentCard(
     matchReasons: buildMatchReasons(
       { ...extracted, availability },
       preferences,
+      normalizedListedAt,
     ),
     catches: [
       ...extracted.caveats,
@@ -76,6 +80,8 @@ export function matchApartmentToPreferences(
     matchReasons: buildMatchReasons(
       { ...extracted, availability },
       preferences,
+      apartment.listedAt,
+      now,
     ),
     catches: [
       ...sourceCatches,
@@ -204,8 +210,11 @@ function calculateMatchScore(
 function buildMatchReasons(
   apartment: ExtractedApartment,
   preferences: Preferences,
+  listedAt: string | null,
+  now = new Date(),
 ) {
   return [
+    listedAgeLabel(listedAt, now),
     matchesBedrooms(apartment.bedrooms, preferences.bedrooms)
       ? "Correct bedroom count"
       : null,
@@ -218,6 +227,24 @@ function buildMatchReasons(
   ]
     .filter((reason): reason is string => Boolean(reason))
     .slice(0, 4);
+}
+
+export function normalizeListedAt(value: string | null) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  if (timestamp > Date.now() + 24 * 60 * 60 * 1000) return null;
+  return new Date(timestamp).toISOString();
+}
+
+function listedAgeLabel(listedAt: string | null, now: Date) {
+  if (!listedAt) return null;
+  const timestamp = Date.parse(listedAt);
+  if (!Number.isFinite(timestamp)) return null;
+  const ageHours = Math.max(0, (now.getTime() - timestamp) / (60 * 60 * 1000));
+  if (ageHours < 24) return "Listed today";
+  const ageDays = Math.floor(ageHours / 24);
+  return `Listed ${ageDays} ${ageDays === 1 ? "day" : "days"} ago`;
 }
 
 function buildCatches(

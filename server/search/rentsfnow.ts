@@ -2,6 +2,7 @@ import {
   decodeHtml,
   fetchPublicHtml,
   mapWithConcurrency,
+  listingPublishedAtFromHtml,
   metaContent,
   textFromHtml,
 } from "./html";
@@ -156,6 +157,7 @@ async function enrichRentSfNowCandidate(
       },
       images,
       preferences,
+      listingPublishedAtFromHtml(html),
     );
   } catch {
     return createApartmentCard(

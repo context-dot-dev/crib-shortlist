@@ -15,6 +15,7 @@ import {
   EASE,
   cityPreferences,
   formatSearchLabel,
+  widerListingWindow,
   type LaundryPreference,
   type Preferences,
 } from "./model";
@@ -194,6 +195,28 @@ export function SearchSetup({
               className="overflow-hidden"
             >
               <div className="grid gap-5 pt-5">
+                <Field label="listed within">
+                  <ChoiceGroup
+                    value={preferences.listedWithin}
+                    options={[
+                      ["any", "any time"],
+                      ["24 hours", "24 hours"],
+                      ["3 days", "3 days"],
+                      ["7 days", "7 days"],
+                    ]}
+                    onChange={(listedWithin) =>
+                      onChange({
+                        listedWithin:
+                          listedWithin as Preferences["listedWithin"],
+                      })
+                    }
+                  />
+                  {preferences.listedWithin !== "any" ? (
+                    <p className="mt-2 text-[10px] font-medium text-muted-foreground">
+                      only listings with a verified posted time
+                    </p>
+                  ) : null}
+                </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="move-in">
                     <SelectInput
@@ -355,13 +378,19 @@ export function SearchComplete({
   onEdit,
   onFindMore,
   onViewSaved,
+  listedWithin,
+  onWidenRecency,
 }: {
   savedCount: number;
   hasResults: boolean;
   onEdit: () => void;
   onFindMore: () => void;
   onViewSaved: () => void;
+  listedWithin: Preferences["listedWithin"];
+  onWidenRecency: () => void;
 }) {
+  const widerWindow = widerListingWindow(listedWithin);
+  const widerWindowLabel = widerWindow === "any" ? "any time" : widerWindow;
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}
@@ -382,7 +411,9 @@ export function SearchComplete({
         </h1>
         <p className="mx-auto mt-3 max-w-[360px] text-[13px] leading-[19px] text-secondary">
           {!hasResults
-            ? "try loosening one must-have. criblist won't pad your deck with dead or mismatched listings."
+            ? widerWindowLabel
+              ? `nothing with a verified posted time matched in the last ${listedWithin}. widen the window to see more.`
+              : "try loosening one must-have. criblist won't pad your deck with dead or mismatched listings."
             : savedCount === 0
               ? "you've been through every live listing that fit. pull a fresh batch or adjust your search."
               : "open the originals whenever you're ready, or keep hunting for more."}
@@ -394,13 +425,25 @@ export function SearchComplete({
               view shortlist ({savedCount})
             </PrimaryButton>
           ) : null}
-          <button
-            type="button"
-            onClick={onFindMore}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-card text-[13px] font-medium shadow-button transition-colors hover:bg-button-hover"
-          >
-            pull a fresh batch
-          </button>
+          {widerWindowLabel ? (
+            <button
+              type="button"
+              onClick={onWidenRecency}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-card text-[13px] font-medium shadow-button transition-colors hover:bg-button-hover"
+            >
+              {widerWindowLabel === "any time"
+                ? "show all listing ages"
+                : `widen to ${widerWindowLabel}`}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onFindMore}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-card text-[13px] font-medium shadow-button transition-colors hover:bg-button-hover"
+            >
+              pull a fresh batch
+            </button>
+          )}
           <button
             type="button"
             onClick={onEdit}

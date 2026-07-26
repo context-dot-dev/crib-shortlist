@@ -11,6 +11,7 @@ export const ListingSnapshotSchema = z.object({
       description: z.string().optional(),
       canonicalUrl: z.string().optional(),
       image: z.string().optional(),
+      datePublished: z.string().optional(),
       jsonLd: z.array(z.record(z.string(), z.unknown())).optional(),
     })
     .passthrough(),

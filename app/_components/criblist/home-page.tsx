@@ -15,8 +15,10 @@ import {
   PREFS_KEY,
   SAVED_KEY,
   SESSION_KEY,
+  widerListingWindow,
   type ApartmentCard,
   type Decision,
+  type Preferences,
   type Stage,
 } from "./model";
 import { loadHuntStorage } from "./storage";
@@ -127,7 +129,11 @@ export function HomePage() {
     setSaved((current) => current.filter((apartment) => apartment.url !== url));
   }, []);
 
-  const search = useCallback(async (extraExcludeUrls: readonly string[] = []) => {
+  const search = useCallback(async (
+    extraExcludeUrls: readonly string[] = [],
+    preferenceOverride?: Preferences,
+  ) => {
+    const activePreferences = preferenceOverride ?? preferences;
     const sequence = searchSequence.current + 1;
     searchSequence.current = sequence;
     setStage("searching");
@@ -147,7 +153,7 @@ export function HomePage() {
       const response = await fetch("/api/apartment-search?source=all", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...preferences, excludeUrls }),
+        body: JSON.stringify({ ...activePreferences, excludeUrls }),
       });
       const responseBody: unknown = await response.json();
       if (!response.ok) {
@@ -176,6 +182,14 @@ export function HomePage() {
       setStage("setup");
     }
   }, [preferences, saved, seenUrls]);
+
+  const widenRecency = useCallback(() => {
+    const listedWithin = widerListingWindow(preferences.listedWithin);
+    if (!listedWithin) return;
+    const nextPreferences = { ...preferences, listedWithin };
+    setPreferences(nextPreferences);
+    void search([], nextPreferences);
+  }, [preferences, search]);
 
   const decide = useCallback(
     (kind: Decision["kind"]) => {
@@ -267,6 +281,8 @@ export function HomePage() {
                 onEdit={editSearch}
                 onFindMore={() => void search()}
                 onViewSaved={() => setSavedOpen(true)}
+                listedWithin={preferences.listedWithin}
+                onWidenRecency={widenRecency}
               />
             )}
           </AnimatePresence>

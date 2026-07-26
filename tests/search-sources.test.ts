@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { POST as apartmentSearchPost } from "../app/api/apartment-search/route";
+import { widerListingWindow } from "../app/_components/criblist/model";
 import { loadHuntStorage } from "../app/_components/criblist/storage";
 import { selectPreferredBrandLogo } from "../server/brand/providers";
 import { extractHostedImageUrls } from "../server/cache/listings";
@@ -16,10 +17,14 @@ import { verifiedApartmentDeck } from "../server/search/service";
 import {
   filterAvailableListings,
   fetchPublicHtml,
+  listingPublishedAtFromHtml,
   publicUrlExists,
 } from "../server/search/html";
 import { extractedCardFromHtml } from "../server/search/extracted-inventory";
-import { buildApartmentDeck } from "../server/search/apartment-deck";
+import {
+  buildApartmentDeck,
+  matchesListingRecency,
+} from "../server/search/apartment-deck";
 import {
   extractRentalsInSfUrls,
   rentalsInSfCardFromHtml,
@@ -59,6 +64,7 @@ const preferences: Preferences = {
   bathroomsMin: 1,
   neighborhoods: [],
   moveIn: "30 days",
+  listedWithin: "any",
   laundry: "any",
   dishwasher: false,
   pets: false,
@@ -715,6 +721,7 @@ test("parses Brodsky apartment inventory from the public page payload", () => {
       neighborhood: "Gowanus",
       address: "499 President, New York, NY 11215",
       availability: "2026-08-14T00:00:00.000Z",
+      listedAt: null,
       description: "Bright one bedroom.",
       amenities: ["Dishwasher"],
     },
@@ -745,6 +752,7 @@ test("parses and deduplicates Stonehenge inventory cards", () => {
       neighborhood: "Long Island City",
       address: "42-20 24th Street, New York, NY",
       squareFeet: null,
+      listedAt: null,
     },
   ]);
 });
@@ -887,6 +895,7 @@ test("does not silently relax explicit must-have filters", () => {
     squareFeet: null,
     floorLevel: null,
     availability: "Available now",
+    listedAt: null,
     description: null,
     laundry: "unknown",
     dishwasher: null,
@@ -990,6 +999,7 @@ test("recalculates cached cards for the current preferences", () => {
     squareFeet: 700,
     floorLevel: null,
     availability: "Available now",
+    listedAt: null,
     description: null,
     laundry: "in-unit",
     dishwasher: true,
@@ -1201,6 +1211,78 @@ test("keeps only reachable listings in their original order", async () => {
   }
 });
 
+test("extracts trustworthy listing publication timestamps", () => {
+  assert.equal(
+    listingPublishedAtFromHtml(`
+      <script type="application/ld+json">
+        {"@type":"Apartment","datePosted":"2026-07-26T08:30:00-04:00"}
+      </script>
+    `),
+    "2026-07-26T12:30:00.000Z",
+  );
+  assert.equal(
+    listingPublishedAtFromHtml(`
+      <time class="date timeago" datetime="2026-07-25T22:15:00-07:00">
+        Jul 25
+      </time>
+    `),
+    "2026-07-26T05:15:00.000Z",
+  );
+});
+
+test("recency filters exclude old and undated listings", () => {
+  const recentPreferences: Preferences = {
+    ...preferences,
+    listedWithin: "24 hours",
+  };
+  const now = new Date("2026-07-26T12:00:00.000Z");
+  assert.equal(
+    matchesListingRecency(
+      apartmentCard({ listedAt: "2026-07-26T06:00:00.000Z" }),
+      recentPreferences,
+      now,
+    ),
+    true,
+  );
+  assert.equal(
+    matchesListingRecency(
+      apartmentCard({ listedAt: "2026-07-24T06:00:00.000Z" }),
+      recentPreferences,
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    matchesListingRecency(apartmentCard(), recentPreferences, now),
+    false,
+  );
+});
+
+test("widens exhausted recency searches one step at a time", () => {
+  assert.equal(widerListingWindow("24 hours"), "3 days");
+  assert.equal(widerListingWindow("3 days"), "7 days");
+  assert.equal(widerListingWindow("7 days"), "any");
+  assert.equal(widerListingWindow("any"), null);
+
+  const twoDayOldApartment = apartmentCard({
+    listedAt: "2026-07-24T12:00:00.000Z",
+  });
+  const now = new Date("2026-07-26T12:00:00.000Z");
+  const oneDayDeck = buildApartmentDeck(
+    [twoDayOldApartment],
+    { ...preferences, listedWithin: "24 hours" },
+    { now },
+  );
+  const threeDayDeck = buildApartmentDeck(
+    [twoDayOldApartment],
+    { ...preferences, listedWithin: "3 days" },
+    { now },
+  );
+
+  assert.equal(oneDayDeck.apartments.length, 0);
+  assert.equal(threeDayDeck.apartments.length, 1);
+});
+
 function apartmentCard(
   patch: Partial<ApartmentCard> = {},
 ): ApartmentCard {
@@ -1218,6 +1300,7 @@ function apartmentCard(
     squareFeet: 600,
     floorLevel: null,
     availability: "Available now",
+    listedAt: null,
     description: null,
     laundry: "in-building",
     dishwasher: null,

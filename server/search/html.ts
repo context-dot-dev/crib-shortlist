@@ -158,6 +158,33 @@ export function metaContent(html: string, key: string) {
   );
 }
 
+export function listingPublishedAtFromHtml(html: string) {
+  const structuredDate = jsonLdFromHtml(html).flatMap((entry) => [
+    entry.datePosted,
+    entry.datePublished,
+    entry.dateCreated,
+  ]).find((value): value is string => typeof value === "string");
+  const metaDate = [
+    "article:published_time",
+    "datePublished",
+    "dateCreated",
+    "listing:published_time",
+  ]
+    .map((key) => metaContent(html, key))
+    .find((value): value is string => Boolean(value));
+  const timeDate =
+    html.match(
+      /<time[^>]+itemprop=["']datePosted["'][^>]+datetime=["']([^"']+)["'][^>]*>/i,
+    )?.[1] ??
+    html.match(
+      /<time[^>]+datetime=["']([^"']+)["'][^>]+(?:class=["'][^"']*(?:date|timeago)[^"']*["'])[^>]*>/i,
+    )?.[1] ??
+    html.match(
+      /<time[^>]+(?:class=["'][^"']*(?:date|timeago)[^"']*["'])[^>]+datetime=["']([^"']+)["'][^>]*>/i,
+    )?.[1];
+  return normalizedPublishedAt(structuredDate ?? metaDate ?? timeDate ?? null);
+}
+
 export function decodeHtml(value: string) {
   return value
     .replaceAll("&amp;", "&")
@@ -215,4 +242,12 @@ function trimHtmlCache() {
   if (htmlCache.size <= 100) return;
   const oldestKey = htmlCache.keys().next().value;
   if (typeof oldestKey === "string") htmlCache.delete(oldestKey);
+}
+
+function normalizedPublishedAt(value: string | null) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  if (timestamp > Date.now() + 24 * 60 * 60 * 1000) return null;
+  return new Date(timestamp).toISOString();
 }

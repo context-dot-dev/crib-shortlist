@@ -5,6 +5,7 @@ import {
   formatPostalAddress,
   isRecord,
   jsonLdFromHtml,
+  listingPublishedAtFromHtml,
   mapWithConcurrency,
   metaContent,
   textFromHtml,
@@ -210,6 +211,7 @@ export function extractedCardFromHtml(
     extracted,
     images,
     preferences,
+    listingPublishedAtFromHtml(html),
   );
 }
 

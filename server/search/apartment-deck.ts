@@ -31,10 +31,14 @@ export function buildApartmentDeck(
   const eligible = uniqueApartments(
     excludeApartments(matched, options.excludedUrls ?? []),
   );
-  const qualityMatches = eligible.filter((apartment) =>
+  const now = options.now ?? new Date();
+  const recentEligible = eligible.filter((apartment) =>
+    matchesListingRecency(apartment, preferences, now),
+  );
+  const qualityMatches = recentEligible.filter((apartment) =>
     passesQualityGate(apartment, preferences),
   );
-  const coreMatches = eligible.filter((apartment) =>
+  const coreMatches = recentEligible.filter((apartment) =>
     passesCoreGate(apartment, preferences),
   );
   const strict = hasStrictPreferences(preferences);
@@ -49,7 +53,11 @@ export function buildApartmentDeck(
       ...apartment,
       matchScore: Math.min(apartment.matchScore, completenessScore(apartment)),
     }))
-    .sort((first, second) => second.matchScore - first.matchScore);
+    .sort(
+      (first, second) =>
+        second.matchScore - first.matchScore ||
+        listingTimestamp(second) - listingTimestamp(first),
+    );
   const deck = diversifyApartments(ranked).slice(0, 8);
 
   return {
@@ -180,8 +188,28 @@ function hasStrictPreferences(preferences: Preferences) {
     preferences.dishwasher ||
     preferences.pets ||
     preferences.entireUnit ||
+    preferences.listedWithin !== "any" ||
     preferences.minSquareFeet > 0
   );
+}
+
+export function matchesListingRecency(
+  apartment: ApartmentCard,
+  preferences: Preferences,
+  now = new Date(),
+) {
+  if (preferences.listedWithin === "any") return true;
+  if (!apartment.listedAt) return false;
+
+  const listedAt = Date.parse(apartment.listedAt);
+  if (!Number.isFinite(listedAt)) return false;
+  const maximumAge = {
+    "24 hours": 24 * 60 * 60 * 1000,
+    "3 days": 3 * 24 * 60 * 60 * 1000,
+    "7 days": 7 * 24 * 60 * 60 * 1000,
+  }[preferences.listedWithin];
+  const age = now.getTime() - listedAt;
+  return age >= -5 * 60 * 1000 && age <= maximumAge;
 }
 
 /**
@@ -234,10 +262,17 @@ function completenessScore(apartment: ApartmentCard) {
     apartment.squareFeet !== null,
     apartment.laundry !== "unknown",
     apartment.availability !== null,
+    apartment.listedAt !== null,
     apartment.amenities.length >= 2,
     apartment.images.length >= 3,
   ];
   return 65 + signals.filter(Boolean).length * 5;
+}
+
+function listingTimestamp(apartment: ApartmentCard) {
+  if (!apartment.listedAt) return 0;
+  const timestamp = Date.parse(apartment.listedAt);
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function diversifyApartments(apartments: ApartmentCard[]) {
