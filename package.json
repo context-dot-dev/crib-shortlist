@@ -35,7 +35,7 @@
     "nextjs"
   ],
   "dependencies": {
-    "@libsql/client": "^0.17.4",
+    "@libsql/client": "^0.18.0",
     "@lisse/react": "^0.3.2",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.3.0",
